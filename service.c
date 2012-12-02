@@ -33,11 +33,8 @@ void handle_client(int socket) {
 	
 	//char* cookie_value = http_parse_header_field(buffer, strlen("Connection"), "Connection");
 	parse_request(buffer, &request, len);
-	printf("1");
 	build_response(&request, &response);
-	printf("2");
 	print_response(&response);
-	printf("3");
 	send(socket,buffer, strlen(buffer), 0);
 } 
 
