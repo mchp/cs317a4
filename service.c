@@ -264,6 +264,20 @@ void handle_putfile(request_info* request, response_info* response){
 		response->body = "HTTP 403, forbidden";
 	}
 
+	char* user_id = extract_cookie(request->cookie, "username");
+	if (user_id) {
+		char* logged_in_str = user_logged_in(user_id);
+		int logged_in_str_len = strlen(logged_in_str);
+		int body_len = strlen(response->body)+logged_in_str_len+1;
+		user_id = (char*)realloc(logged_in_str, body_len);
+
+		strcpy(user_id+logged_in_str_len, response->body);
+		user_id[body_len-1] = '\0';
+
+		free(response->body);
+		response->body = user_id;
+	}
+
 	set_content_length(response);
 	response->cache_control = "no-cache";
 }
