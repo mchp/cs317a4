@@ -108,6 +108,22 @@ char* user_logged_in(const char* username) {
 	return logged_in_str;
 }
 
+void prepend_user_to_body(request_info* request, response_info* response) {
+	char* user_id = extract_cookie(request->cookie, "username");
+	if (user_id) {
+		char* logged_in_str = user_logged_in(user_id);
+		int logged_in_str_len = strlen(logged_in_str);
+		int body_len = strlen(response->body)+logged_in_str_len+1;
+		user_id = (char*)realloc(logged_in_str, body_len);
+
+		strcpy(user_id+logged_in_str_len, response->body);
+		user_id[body_len-1] = '\0';
+
+		free(response->body);
+		response->body = user_id;
+	}
+}
+
 void set_content_length(response_info* response) {
 	char* content_len_val = (char*)malloc(strlen(response->body));
 	sprintf(content_len_val, "%d", (int)strlen(response->body));
@@ -124,7 +140,6 @@ void handle_login(request_info* request, response_info* response) {
 		response->set_cookie = build_cookie_string("username", user_id, max_age, "", "/", 0);
 		response->body = user_logged_in(user_id);
 		free(user_id);
-
 	} else {
 		response->body = "Login failed\n";
 	}
@@ -162,31 +177,15 @@ void handle_servertime(request_info* request, response_info* response) {
 	time_t rawtime;
 	time(&rawtime);
 
-	char* time_string = get_local_time_string(&rawtime);
-	
-	char* user_id = extract_cookie(request->cookie, "username");
+	response->body = get_local_time_string(&rawtime);
+	prepend_user_to_body(request, response);
 
-	char* body = time_string;
-	if (user_id) {
-		char* logged_in_str = user_logged_in(user_id);
-		int logged_in_str_len = strlen(logged_in_str);
-		int body_len = strlen(time_string)+logged_in_str_len+1;
-		body = (char*)realloc(logged_in_str, body_len);
-
-		strcpy(body+logged_in_str_len, time_string);
-		body[body_len-1] = '\0';
-
-		free(user_id);
-		free(time_string);
-	}
-
-	response->body = body;
 	set_content_length(response);
 	response->cache_control = "no-cache";
 }
 
 void handle_browser(request_info* request, response_info* response){
-	char* user_id = extract_cookie(request->cookie, "username");
+	
 	char* userAgent_str = "User-Agent: ";
 	int userAgent_str_len = strlen(userAgent_str);	
 	char* userAgent = request->user_agent;
@@ -194,22 +193,9 @@ void handle_browser(request_info* request, response_info* response){
 	userAgent = (char*)realloc(userAgent_str, userAgent_len);
 	strcpy(userAgent+userAgent_str_len, request->user_agent);
 	userAgent[userAgent_len-1] = '\n';
-	char* body = userAgent;	
 
-	if (user_id) {
-		char* logged_in_str = user_logged_in(user_id);
-		int logged_in_str_len = strlen(logged_in_str);
-		int body_len = strlen(userAgent)+logged_in_str_len+1;
-		body = (char*)realloc(logged_in_str, body_len);
-
-		strcpy(body+logged_in_str_len, userAgent);
-		body[body_len-1] = '\0';
-
-		free(user_id);
-		free(userAgent);
-	}
-
-	response->body = body;
+	response->body = userAgent;
+	prepend_user_to_body(request, response);
 	set_content_length(response);
 	response->cache_control = "private";
 }
@@ -217,21 +203,9 @@ void handle_browser(request_info* request, response_info* response){
 void handle_redirect (request_info* request, response_info* response){
 	response->status_code = "303";
 	response->status_msg = "See Other"; //???
-	char* user_id = extract_cookie(request->cookie, "username");
-	char* body = request->user_agent;
-	if (user_id) {
-		char* logged_in_str = user_logged_in(user_id);
-		int logged_in_str_len = strlen(logged_in_str);
-		int body_len = strlen(request->user_agent)+logged_in_str_len+1;
-		body = (char*)realloc(logged_in_str, body_len);
 
-		strcpy(body+logged_in_str_len, request->user_agent);
-		body[body_len-1] = '\0';
-
-		free(user_id);
-	}
-
-	response->body = body;
+	response->body = request->user_agent;
+	prepend_user_to_body(request, response);
 	set_content_length(response);
 	response->cache_control = "private";
 }
@@ -264,21 +238,9 @@ void handle_putfile(request_info* request, response_info* response){
 		response->body = "HTTP 403, forbidden";
 	}
 
-	char* user_id = extract_cookie(request->cookie, "username");
-	if (user_id) {
-		char* logged_in_str = user_logged_in(user_id);
-		int logged_in_str_len = strlen(logged_in_str);
-		int body_len = strlen(response->body)+logged_in_str_len+1;
-		user_id = (char*)realloc(logged_in_str, body_len);
-
-		strcpy(user_id+logged_in_str_len, response->body);
-		user_id[body_len-1] = '\0';
-
-		free(response->body);
-		response->body = user_id;
-	}
-
+	prepend_user_to_body(request, response);
 	set_content_length(response);
+
 	response->cache_control = "no-cache";
 }
 
