@@ -106,12 +106,9 @@ char* user_logged_in(const char* username) {
 void handle_login(request_info* request, response_info* response) {
 	char* user_id = extract_parameter(request->parameters, "username");
 	
-	time_t raw_time;
-	time(&raw_time);
-	raw_time += 24*60*60;
-	char* expiration = get_time_string(&raw_time);
+	char* max_age = "86400"; //24*60*60
 
-	response->set_cookie = build_cookie_string("username", user_id, expiration, "", "/", 0);
+	response->set_cookie = build_cookie_string("username", user_id, max_age, "", "/", 0);
 	response->body = user_logged_in(user_id);
 
 	char* content_len_val = (char*)malloc(strlen(response->body));
@@ -121,7 +118,7 @@ void handle_login(request_info* request, response_info* response) {
 	response->content_length = content_len_val;
 
 	free(user_id);
-	free(expiration);
+
 }
 
 void build_response(request_info* request, response_info* response){

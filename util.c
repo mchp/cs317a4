@@ -304,7 +304,7 @@ void build_cookie_field(char* cookie_string, int* actual_len, const char* name, 
 	free(encoded_value);
 }
 
-char* build_cookie_string(const char* name, const char* value, const char* expires, const char* domain, const char* path, int secure) {
+char* build_cookie_string(const char* name, const char* value, const char* max_age, const char* domain, const char* path, int secure) {
 	int max_len = 3*strlen(name)+3*strlen(value) +3*strlen(domain)+3*strlen(path)+ 40; //sorry about magic number everywhere; will fix
 	int actual_len = 0;
 	
@@ -324,8 +324,8 @@ char* build_cookie_string(const char* name, const char* value, const char* expir
 	actual_len += strlen(encoded_value);
 	free(encoded_value);
 
-	if (strlen(expires) != 0) {
-		build_cookie_field(cookie_string, &actual_len, "; expires=", expires);
+	if (strlen(max_age) != 0) {
+		build_cookie_field(cookie_string, &actual_len, "; max-age=", max_age);
 	}
 	
 	if (strlen(domain) != 0) {
