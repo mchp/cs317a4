@@ -54,16 +54,19 @@ void handle_client(int socket) {
 		return;
 	}
 
-	print_request(&request);
+	//print_request(&request);
 
 
-	if (!all_params_present(&request) || request.command == NOTA) {
+	if (!all_params_present(&request)) {
 		response_string = forbidden_command();
+	} else if (request.command == NOTA){
+		response_string = not_found_command();
+	} else if (request.command == CHECKOUT && extract_cookie(request.cookie, "username") ==NULL){
+		response_string = forbidden_checkout();
 	} else {
 		build_response(&request, &response);
 		response_string = print_response(&response);
 	}
-
 	send(socket,response_string, strlen(response_string), 0);
 } 
 
@@ -180,6 +183,79 @@ void handle_servertime(request_info* request, response_info* response) {
 	response->cache_control = "no-cache";
 }
 
+void handle_browser(request_info* request, response_info* response){
+	char* user_id = extract_cookie(request->cookie, "username");
+	char* userAgent_str = "User-Agent: ";
+	int userAgent_str_len = strlen(userAgent_str);	
+	char* userAgent = request->user_agent;
+	int userAgent_len = strlen(userAgent)+ userAgent_str_len +1;
+	userAgent = (char*)realloc(userAgent_str, userAgent_len);
+	strcpy(userAgent+userAgent_str_len, request->user_agent);
+	userAgent[userAgent_len-1] = '\n';
+	char* body = userAgent;	
+
+	if (user_id) {
+		char* logged_in_str = user_logged_in(user_id);
+		int logged_in_str_len = strlen(logged_in_str);
+		int body_len = strlen(userAgent)+logged_in_str_len+1;
+		body = (char*)realloc(logged_in_str, body_len);
+
+		strcpy(body+logged_in_str_len, userAgent);
+		body[body_len-1] = '\0';
+
+		free(user_id);
+		free(userAgent);
+	}
+
+	response->body = body;
+	set_content_length(response);
+	response->cache_control = "private";
+}
+
+void handle_redirect (request_info* request, response_info* response){
+	char* user_id = extract_cookie(request->cookie, "username");
+	char* body = request->user_agent;
+	if (user_id) {
+		char* logged_in_str = user_logged_in(user_id);
+		int logged_in_str_len = strlen(logged_in_str);
+		int body_len = strlen(request->user_agent)+logged_in_str_len+1;
+		body = (char*)realloc(logged_in_str, body_len);
+
+		strcpy(body+logged_in_str_len, request->user_agent);
+		body[body_len-1] = '\0';
+
+		free(user_id);
+	}
+
+	response->body = body;
+	set_content_length(response);
+	response->cache_control = "private";
+}
+
+void handle_getfile(request_info* request, response_info* response){
+	response->content_type = "application/octet-stream";
+	//set response->last_modified
+}
+
+void handle_putfile(request_info* request, response_info* response){
+	response->cache_control = "no-cache";
+}
+
+void handle_addcart(request_info* request, response_info* response){
+}
+
+void handle_delcart(request_info* request, response_info* response){
+}
+
+void handle_checkout(request_info* request, response_info* response){
+	
+}
+
+void handle_close(request_info* request, response_info* response){
+	response->connection = "close";
+	response->body = "The connection will now be closed";
+}
+
 void build_response(request_info* request, response_info* response){
 
 	memset(response, 0, sizeof(response_info));
@@ -200,26 +276,32 @@ void build_response(request_info* request, response_info* response){
 		case SERVERTIME:
 			handle_servertime(request, response);
 			break;
-		//browser seems to be all done
 		case BROWSER:
+			handle_browser(request, response);
 			break;
 		case REDIRECT:
+			response->location = extract_parameter(request->parameters, "url");
 			break;
 		case GET_FILE:
+			handle_getfile(request, response);
 			break;
 		case PUT_FILE:
+			handle_putfile(request, response);
 			break;
 		case ADD_CART:
+			handle_addcart(request, response);
 			break;
 		case DEL_CART:
+			handle_delcart(request, response);
 			break;
 		case CHECKOUT:
+			handle_checkout(request, response);
 			break;
 		case CLOSE:
+			handle_close(request, response);
 			break;
 		case NOTA:
-			//TODO: return HTTP response code for Not Found here
-			printf("Command not found\n");
+			not_found_command();
 			break;
 	}
 	if (response->info->content_type == NULL)
@@ -227,22 +309,54 @@ void build_response(request_info* request, response_info* response){
 }
 
 bool all_params_present(request_info* request){
-	char* location = "";	
 	if ((request->command == BROWSER && request->user_agent == NULL) ||
-	    (request->command == REDIRECT && extract_parameter("url=", decode(request->parameters,location))))
+	    (request->command == REDIRECT && extract_parameter(request->parameters, "url")==NULL))
 		return false;
 	return true;
 }
 
-char* forbidden_command(){
-	//TODO: return HTTP response code for Forbidden here
-	printf("Command not found\n");
-	return "Command not found\n";
+char* not_found_command(){
+	char* header = new_response_header("404", "Not Found");
+	int header_len = strlen(header);
+	char* statement = "Command not found\n"; 		
+	char* body = statement;		
+	int body_len = strlen(statement)+header_len+1;
+	body = (char*)realloc(header, body_len);
+	strcpy(body+header_len, statement);
+	body[body_len-1] = '\0';
+	return body;
 }
 
+char* forbidden_command(){
+	char* header = new_response_header("403", "Forbidden");
+	int header_len = strlen(header);
+	char* statement = "Command forbidden\n"; //there is no explicit instruction that this should be the statement
+	char* body = statement;		
+	int body_len = strlen(statement)+header_len+1;
+	body = (char*)realloc(header, body_len);
+	strcpy(body+header_len, statement);
+	body[body_len-1] = '\0';
+	return body;
+}
+
+char* forbidden_checkout(){
+	char* header = new_response_header("403", "Forbidden");
+	int header_len = strlen(header);
+	char* statement = "User must be logged in to checkout\n";
+	char* body = statement;		
+	int body_len = strlen(statement)+header_len+1;
+	body = (char*)realloc(header, body_len);
+	strcpy(body+header_len, statement);
+	body[body_len-1] = '\0';
+	return body;
+}
 
 char* print_response(response_info* response){
-	char* response_string = new_response_header("200", "OK");
+	char* response_string;
+	if (response->info->command == REDIRECT)	
+		response_string = new_response_header("303", "See Other");
+	else	
+		response_string = new_response_header("200", "OK");
 	
 	time_t raw_time;
 	time(&raw_time);
@@ -264,6 +378,11 @@ char* print_response(response_info* response){
 
 	//TODO figure out when to use transfer-encoding	
 	//add_header_field(&response_string, "Transfer-Encoding", response->info->transfer_encoding);
+
+	if (response->info->command == REDIRECT)
+		add_header_field(&response_string, "Location", response->location);
+	else if (response->info->command == GET_FILE)
+		add_header_field(&response_string, "Last-Modified", response->last_modified);
 
 	add_response_body(&response_string, response->body);
 	
