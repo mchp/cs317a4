@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "util.h"
 
@@ -210,4 +211,36 @@ char *decode(const char *original, char *decoded) {
     }
     *decoded = '\0';
     return d;
+}
+
+char* new_response_header(char* code, char* message) {
+	const char* HTTP_RESPONSE = "HTTP/1.1 ";
+	const int HTTP_RESPONSE_LEN = strlen(HTTP_RESPONSE);
+	int msg_start = HTTP_RESPONSE_LEN + strlen(code) + 1;
+	int header_len = msg_start+strlen(message)+2;
+
+	char* new_response = (char*)malloc(header_len);
+
+	strcpy(new_response, HTTP_RESPONSE);
+	strcpy(new_response+HTTP_RESPONSE_LEN, code);
+	strcpy(new_response+(msg_start-1), " ");
+	strcpy(new_response+msg_start, message);
+	new_response[header_len-2] = '\n';
+	new_response[header_len-1] = '\0';
+	
+	return new_response;
+}
+
+void add_header_field(char** header, const char* name, const char* value) {
+	int old_len = strlen(*header);
+	int name_len = strlen(name);
+	int val_len = strlen(value);	
+	int new_len = old_len+name_len+val_len+4;
+	*header = (char*)realloc(*header, new_len);
+
+	strcpy((*header)+old_len, name);
+	strcpy((*header)+old_len+name_len, ": ");
+	strcpy((*header)+old_len+name_len+2, value);
+	(*header)[new_len-2] = '\n';
+	(*header)[new_len-1] = '\0';
 }

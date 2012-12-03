@@ -21,4 +21,6 @@ const char *http_parse_body(const char *request, int length);
 char *encode(const char *original, char *encoded);
 char *decode(const char *original, char *decoded);
 
+char* new_response_header(char* code, char* message);
+void add_header_field(char** header, const char* name, const char* value);
 #endif

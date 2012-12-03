@@ -17,13 +17,14 @@ typedef enum {
 typedef struct request_info{
 	http_method req_type; //do we really need this?
 	command_type command;
-	char* cacheControl;
+	char* cache_control;
 	char* connection;
 	char* host;
 	char* user_agent;
 	char* content_length;
 	char* content_type;
 	char* transfer_encoding;
+	char* cookie;
 	const char* parameters;
 } request_info;
 
@@ -39,8 +40,8 @@ void parse_request(char* buffer, request_info* request, int len);
 command_type parse_command(char* uri);
 void build_response(request_info* request, response_info* response);
 char* extract_parameter(char* param, char* string);
-void print_response(response_info* response);
-void forbidden_command();
+char* print_response(response_info* response);
+char* forbidden_command();
 bool all_params_present(request_info* request);
 
 #endif

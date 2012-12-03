@@ -3,6 +3,7 @@ CFLAGS=-Wall -Werror -g -Wextra -Wno-unused-parameter
 LDFLAGS=
 
 all: cshttp
+	./cshttp 1234
 cshttp: cshttp.o service.o util.o
 test_util: test_util.o util.o
 
