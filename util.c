@@ -257,6 +257,7 @@ void add_response_body(char** response, const char* body) {
 	(*response)[new_len-2] = '\n';
 	(*response)[new_len-1] = '\0';
 }
+
 char* extract_parameter(const char* parameters, const char* name) {
 	int total_len = strlen(parameters);
 	int name_len = strlen(name);
@@ -267,7 +268,8 @@ char* extract_parameter(const char* parameters, const char* name) {
 	while (start_pos != NULL) {
 		if (!strncasecmp(start_pos - name_len, name, name_len)) {
 			break;
-		}	
+		}
+		start_pos = memchr(start_pos+1, '=', total_len - (start_pos - parameters));
 	}
 
 	if (start_pos == NULL) {
@@ -292,16 +294,57 @@ char* extract_parameter(const char* parameters, const char* name) {
 	return decoded_value;
 }
 
+char* extract_cookie(const char* cookie_string, const char* name) {
+	int total_len = strlen(cookie_string);
+	int name_len = strlen(name);
+	int val_len = 0;
+
+	char* start_pos = memchr(cookie_string, '=', total_len);
+
+	while (start_pos != NULL) {
+		if (!strncasecmp(start_pos - name_len, name, name_len)) {
+			break;
+		}
+		start_pos = memchr(start_pos+1, '=', total_len - (start_pos - cookie_string));
+	}
+
+	if (start_pos == NULL) {
+		return NULL;
+	}
+
+	while (start_pos + val_len + 1 < cookie_string+total_len && start_pos[val_len+1] != ';'){
+		val_len++;
+	}
+
+	char temp = start_pos[val_len+1];
+	start_pos[val_len+1] = '\0';
+
+	char* value = (char*)malloc(val_len+1);
+	strcpy(value, start_pos+1);
+	value[val_len] = '\0';
+
+	start_pos[val_len+1] = temp;
+
+	char* decoded_value = (char*)malloc(val_len+2);
+	decode(value, decoded_value);
+	free(value);
+	return decoded_value;
+}
+
 void build_cookie_field(char* cookie_string, int* actual_len, const char* name, const char* value) {
 	strcpy(cookie_string+*actual_len, name);
 	*actual_len += strlen(name);
 	
-	char* encoded_value = (char*)malloc(strlen(value)*3+1);
+	//char* encoded_value = (char*)malloc(strlen(value)*3+1);
+	
+	strcpy(cookie_string+*actual_len, value);
+	*actual_len += strlen(value);
 
-	strcpy(cookie_string+*actual_len, encode(value, encoded_value));
-	*actual_len += strlen(encoded_value);
+	
+	//strcpy(cookie_string+*actual_len, encode(value, encoded_value));
+	//*actual_len += strlen(encoded_value);
 
-	free(encoded_value);
+	//free(encoded_value);
 }
 
 char* build_cookie_string(const char* name, const char* value, const char* max_age, const char* domain, const char* path, int secure) {

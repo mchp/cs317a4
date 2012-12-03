@@ -103,22 +103,53 @@ char* user_logged_in(const char* username) {
 	return logged_in_str;
 }
 
-void handle_login(request_info* request, response_info* response) {
-	char* user_id = extract_parameter(request->parameters, "username");
-	
-	char* max_age = "86400"; //24*60*60
-
-	response->set_cookie = build_cookie_string("username", user_id, max_age, "", "/", 0);
-	response->body = user_logged_in(user_id);
-
+void set_content_length(response_info* response) {
 	char* content_len_val = (char*)malloc(strlen(response->body));
 	sprintf(content_len_val, "%d", (int)strlen(response->body));
 	content_len_val = (char*)realloc(content_len_val, strlen(content_len_val));
 
 	response->content_length = content_len_val;
+}
+
+void handle_login(request_info* request, response_info* response) {
+	char* user_id = extract_parameter(request->parameters, "username");
+	
+	if (user_id) {
+		char* max_age = "86400"; //24*60*60 i.e. 24 hours
+		response->set_cookie = build_cookie_string("username", user_id, max_age, "", "/", 0);
+		response->body = user_logged_in(user_id);
+	} else {
+		response->body = "Login failed\n";
+	}
+	
+	response->cache_control = "no-cache";
+	set_content_length(response);
 
 	free(user_id);
 
+}
+
+void handle_logout(request_info* request, response_info* response) {
+	char* user_id = extract_cookie(request->cookie, "username");
+	printf("bye bye %s\n", user_id);
+	if (user_id) {
+		const char* pre = "User ";
+		const char* post = " was logged out.\n";
+		char* body = (char*)malloc(strlen(pre)+strlen(post)+strlen(user_id)+1);
+		strcpy(body, pre);
+		strcpy(body+strlen(pre), user_id);
+		strcpy(body+strlen(pre)+strlen(user_id), post);
+
+		response->body = body;
+		response->set_cookie = build_cookie_string("username", user_id, "-1", "", "/", 0);
+		
+	} else {
+		response->body = "Please login before logging out\n";
+	}
+
+	set_content_length(response);
+
+	free(user_id);
 }
 
 void build_response(request_info* request, response_info* response){
@@ -139,6 +170,7 @@ void build_response(request_info* request, response_info* response){
 			handle_login(request, response);
 			break;
 		case LOGOUT:
+			handle_logout(request, response);
 			break;
 		case SERVERTIME:
 			break;
