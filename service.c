@@ -43,6 +43,7 @@ void handle_client(int socket) {
 
 	request_info request;
 	response_info response;
+
 	while(http_header_complete(request_string, curr_len) == -1) {
 		curr_len += recv(socket, request_string+curr_len, len-curr_len,0);	
 	}
@@ -55,7 +56,8 @@ void handle_client(int socket) {
 
 	print_request(&request);
 
-	if (!all_params_present(&request) || request.command != NOTA) {
+
+	if (!all_params_present(&request) || request.command == NOTA) {
 		response_string = forbidden_command();
 	} else {
 		build_response(&request, &response);
@@ -76,7 +78,6 @@ void parse_request(char* buffer, request_info* request, int len){
 	request->transfer_encoding = http_parse_header_field(buffer, len, "Transfer-Encoding");
 	request->cookie = http_parse_header_field(buffer, len, "Cookie");
 	request->parameters = http_parse_path(http_parse_uri(buffer));
-
 }
 
 command_type parse_command(char* uri){
@@ -88,49 +89,78 @@ command_type parse_command(char* uri){
 	return NOTA;
 }
 
+char* user_logged_in(const char* username) {
+	char* title = "Username: \0";
+	int total_len = strlen(username)+strlen(title)+2;
+	
+	char* logged_in_str = (char*)malloc(total_len);
+	strcpy(logged_in_str, title);
+	strcpy(logged_in_str+strlen(title), username);
+
+	logged_in_str[total_len - 2] = '\n';
+	logged_in_str[total_len - 1] = '\0';
+
+	return logged_in_str;
+}
+
+void handle_login(request_info* request, response_info* response) {
+	char* user_id = extract_parameter(request->parameters, "username");
+	
+	time_t raw_time;
+	time(&raw_time);
+	raw_time += 24*60*60;
+	char* expiration = get_time_string(&raw_time);
+
+	response->set_cookie = build_cookie_string("username", user_id, expiration, "", "/", 0);
+	response->body = user_logged_in(user_id);
+
+	char* content_len_val = (char*)malloc(strlen(response->body));
+	sprintf(content_len_val, "%d", (int)strlen(response->body));
+	content_len_val = (char*)realloc(content_len_val, strlen(content_len_val));
+
+	response->content_length = content_len_val;
+
+	free(user_id);
+	free(expiration);
+}
+
 void build_response(request_info* request, response_info* response){
-	char* location= "";
+
+	memset(response, 0, sizeof(response_info));
 	response->info = request;
-	response->userID = NULL;
-	response->last_modified = NULL;
-	if (response->info->cache_control == NULL)
+
+	//set some common fields that are true for most requests
+	response->content_type = "text/plain";
+	response->connection = "keep-alive";
+	response->cache_control = "public";
+
+	if (response->info->cache_control == NULL)//What is this? -mp
 		response->info->cache_control = "public"; //TODO: check this is true
+
 	switch(request->command){
 		case LOGIN:
+			handle_login(request, response);
 			break;
 		case LOGOUT:
 			break;
 		case SERVERTIME:
-			response->info->cache_control = "no-cache";
 			break;
 		//browser seems to be all done
 		case BROWSER:
-			response->info->cache_control = "private";
-			printf("User-Agent: %s\n", response->info->user_agent);
 			break;
 		case REDIRECT:
-			//TODO:return HTTP with the code for "See Other" (I don't know what that means yet)
-			printf("Location: %s\n", extract_parameter("url=", decode(response->info->parameters, location)));
 			break;
 		case GET_FILE:
-			//if success
-			response->info->content_type = "application/octet-stream";
-			//set response->last_modified;
 			break;
 		case PUT_FILE:
-			response->info->cache_control = "no-cache";
 			break;
 		case ADD_CART:
 			break;
 		case DEL_CART:
 			break;
 		case CHECKOUT:
-			if (response->userID == NULL)
-				printf("User must be logged in to checkout."); 
 			break;
 		case CLOSE:
-			response->info->connection = "close";
-			printf("The connection will now be closed.");
 			break;
 		case NOTA:
 			//TODO: return HTTP response code for Not Found here
@@ -139,14 +169,6 @@ void build_response(request_info* request, response_info* response){
 	}
 	if (response->info->content_type == NULL)
 		response->info->content_type = "text/plain";
-	response->date = "";
-}
-
-//TODO: implement this
-char* extract_parameter(char* param, char* string){
-	//find param in string	
-	//return the string that follows until you find '&' or ' '
-	return "";
 }
 
 bool all_params_present(request_info* request){
@@ -163,45 +185,33 @@ char* forbidden_command(){
 	return "Command not found\n";
 }
 
-char* get_time_string() {
-
-	time_t raw_time;
-	struct tm* ptm;
-	time(&raw_time);
-	ptm = gmtime(&raw_time);	
-
-	int max_size = 1000;
-	char* time_string = (char*)malloc(max_size*sizeof(char));
-
-	int final_size = strftime(time_string, max_size, "%a, %d %b %Y %T %Z", ptm);
-
-	if (final_size < max_size) {
-		time_string[final_size] = '\0';
-	}
-
-	return time_string;
-}
 
 char* print_response(response_info* response){
 	char* response_string = new_response_header("200", "OK");
-
-	char* time_string = get_time_string();
+	
+	time_t raw_time;
+	time(&raw_time);
+	char* time_string = get_time_string(&raw_time);
 	
 	add_header_field(&response_string, "Date", time_string);
-	add_header_field(&response_string, "Connection", response->info->connection);
 
-	add_header_field(&response_string, "Cache-Control", response->info->cache_control);
-	add_header_field(&response_string, "Content-length", "0");
+	add_header_field(&response_string, "Connection", response->connection);
+
+	add_header_field(&response_string, "Cache-Control", response->cache_control);
+
+	add_header_field(&response_string, "Content-Length", response->content_length);
+
+	add_header_field(&response_string, "Content-Type", response->content_type);
+
+	if (response->set_cookie) {
+		add_header_field(&response_string, "Set-Cookie", response->set_cookie);
+	}
 
 	//TODO figure out when to use transfer-encoding	
 	//add_header_field(&response_string, "Transfer-Encoding", response->info->transfer_encoding);
 
-	if (response->info->command == GET_FILE) {
-		add_header_field(&response_string, "Last-Modified", response->last_modified);
-		add_header_field(&response_string, "Content-Type", "application/octet-stream\0");
-	} else {
-		add_header_field(&response_string, "Content-Type", "text/plain");
-	}
+	add_response_body(&response_string, response->body);
+	
 	
 	printf("%s\n", response_string);
 	free(time_string);

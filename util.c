@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "util.h"
 
@@ -244,3 +245,122 @@ void add_header_field(char** header, const char* name, const char* value) {
 	(*header)[new_len-2] = '\n';
 	(*header)[new_len-1] = '\0';
 }
+
+void add_response_body(char** response, const char* body) {
+	int old_len = strlen(*response);
+	int body_len = strlen(body);
+	int new_len = old_len+body_len+3;
+	*response = (char*)realloc(*response, new_len);
+
+	(*response)[old_len] = '\n';
+	strcpy((*response)+old_len+1, body);
+	(*response)[new_len-2] = '\n';
+	(*response)[new_len-1] = '\0';
+}
+char* extract_parameter(const char* parameters, const char* name) {
+	int total_len = strlen(parameters);
+	int name_len = strlen(name);
+	int val_len = 0;
+
+	char* start_pos = memchr(parameters, '=', total_len);
+
+	while (start_pos != NULL) {
+		if (!strncasecmp(start_pos - name_len, name, name_len)) {
+			break;
+		}	
+	}
+
+	if (start_pos == NULL) {
+		return NULL;
+	}
+
+	while (start_pos + val_len + 1 < parameters+total_len && start_pos[val_len+1] != '&'){
+		val_len++;
+	}
+	char temp = start_pos[val_len+1];
+	start_pos[val_len+1] = '\0';
+
+	char* value = (char*)malloc(val_len+1);
+	strcpy(value, start_pos+1);
+	value[val_len] = '\0';
+
+	start_pos[val_len+1] = temp;
+
+	char* decoded_value = (char*)malloc(val_len+2);
+	decode(value, decoded_value);
+	free(value);
+	return decoded_value;
+}
+
+void build_cookie_field(char* cookie_string, int* actual_len, const char* name, const char* value) {
+	strcpy(cookie_string+*actual_len, name);
+	*actual_len += strlen(name);
+	
+	char* encoded_value = (char*)malloc(strlen(value)*3+1);
+
+	strcpy(cookie_string+*actual_len, encode(value, encoded_value));
+	*actual_len += strlen(encoded_value);
+
+	free(encoded_value);
+}
+
+char* build_cookie_string(const char* name, const char* value, const char* expires, const char* domain, const char* path, int secure) {
+	int max_len = 3*strlen(name)+3*strlen(value) +3*strlen(domain)+3*strlen(path)+ 40; //sorry about magic number everywhere; will fix
+	int actual_len = 0;
+	
+	char* cookie_string = (char*)malloc(max_len);
+
+	if (strlen(name) != 0) {
+		char* encoded_name = (char*)malloc(strlen(name)*3+1);
+		strcpy(cookie_string, encode(name, encoded_name));
+		actual_len += strlen(encoded_name);
+		cookie_string[actual_len++] = '=';
+
+		free(encoded_name);
+	}
+
+	char* encoded_value = (char*)malloc(strlen(value)*3+1);
+	strcpy(cookie_string+actual_len, encode(value, encoded_value));
+	actual_len += strlen(encoded_value);
+	free(encoded_value);
+
+	if (strlen(expires) != 0) {
+		build_cookie_field(cookie_string, &actual_len, "; expires=", expires);
+	}
+	
+	if (strlen(domain) != 0) {
+		build_cookie_field(cookie_string, &actual_len, "; domain=", domain);
+	}
+
+	if (strlen(path) != 0) {
+		build_cookie_field(cookie_string, &actual_len, "; path=", path);
+	}
+
+	if (secure) {
+		build_cookie_field(cookie_string, &actual_len, "; secure", "");
+	}
+
+	cookie_string[actual_len] = '\0';
+	cookie_string = (char*)realloc(cookie_string, actual_len+1);
+
+	return cookie_string;
+}
+
+
+char* get_time_string(time_t* raw_time) {
+	struct tm* ptm;
+	ptm = gmtime(raw_time);	
+
+	int max_size = 1000;
+	char* time_string = (char*)malloc(max_size);
+
+	int final_size = strftime(time_string, max_size, "%a, %d %b %Y %T %Z", ptm);
+
+	if (final_size < max_size) {
+		time_string[final_size] = '\0';
+	}
+
+	time_string = (char*)realloc(time_string, final_size+1);
+	return time_string;
+}
+

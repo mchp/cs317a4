@@ -23,4 +23,8 @@ char *decode(const char *original, char *decoded);
 
 char* new_response_header(char* code, char* message);
 void add_header_field(char** header, const char* name, const char* value);
+void add_response_body(char** response, const char* body);
+char* extract_parameter(const char* parameters, const char* name);
+char* build_cookie_string(const char* name, const char* value, const char* expires, const char* domain, const char* path, int secure);
+char* get_time_string(time_t* raw_time);
 #endif
