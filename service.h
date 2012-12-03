@@ -26,10 +26,13 @@ typedef struct request_info{
 	char* transfer_encoding;
 	char* cookie;
 	const char* parameters;
+	const char* body;
 } request_info;
 
 typedef struct response_info{
 	struct request_info* info;
+	char* status_code;
+	char* status_msg;
 	char* content_type;
 	char* connection;
 	char* cache_control;

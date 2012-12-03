@@ -31,6 +31,7 @@ void print_request(request_info* request) {
 	printf("cookie:%s\n", request->cookie);
 	printf("transfer_encoding:%s\n", request->transfer_encoding);
 	printf("parameters:%s\n", request->parameters);
+	printf("body: %s\n", request->body);
 	printf("---- End of Request Info ------\n");
 }
 
@@ -47,7 +48,7 @@ void handle_client(int socket) {
 	while(http_header_complete(request_string, curr_len) == -1) {
 		curr_len += recv(socket, request_string+curr_len, len-curr_len,0);	
 	}
-
+	//printf("%s\n", request_string);
 	parse_request(request_string, &request, len);
 
 	if (!strncasecmp(request.parameters, "/favicon.ico", strlen("/favicon.ico"))) {
@@ -81,6 +82,7 @@ void parse_request(char* buffer, request_info* request, int len){
 	request->transfer_encoding = http_parse_header_field(buffer, len, "Transfer-Encoding");
 	request->cookie = http_parse_header_field(buffer, len, "Cookie");
 	request->parameters = http_parse_path(http_parse_uri(buffer));
+	request->body = http_parse_body(buffer, len);
 }
 
 command_type parse_command(char* uri){
@@ -213,6 +215,8 @@ void handle_browser(request_info* request, response_info* response){
 }
 
 void handle_redirect (request_info* request, response_info* response){
+	response->status_code = "303";
+	response->status_msg = "See Other"; //???
 	char* user_id = extract_cookie(request->cookie, "username");
 	char* body = request->user_agent;
 	if (user_id) {
@@ -238,6 +242,29 @@ void handle_getfile(request_info* request, response_info* response){
 }
 
 void handle_putfile(request_info* request, response_info* response){
+	char* filename = extract_parameter(request->body, "filename");
+	int filename_len = strlen(filename);
+	FILE * fd;
+	fd = fopen (filename,"w");
+	if (fd != NULL) {
+		char* content = extract_parameter(request->body, "content");
+		fputs(content, fd);
+		fclose(fd);
+		free(content);
+
+		char* save_success = " has been saved successfully.";
+		filename = (char*)realloc(filename, filename_len+strlen(save_success));
+		strcpy(filename+filename_len, save_success);
+	
+		response->body = filename;
+		set_content_length(response);
+	} else {
+		response->status_code = "403";
+		response->status_msg = "Forbidden";
+		response->body = "HTTP 403, forbidden";
+	}
+
+	set_content_length(response);
 	response->cache_control = "no-cache";
 }
 
@@ -265,6 +292,8 @@ void build_response(request_info* request, response_info* response){
 	response->content_type = "text/plain";
 	response->connection = "keep-alive";
 	response->cache_control = "public";
+	response->status_code = "200";
+	response->status_msg = "OK";
 
 	switch(request->command){
 		case LOGIN:
@@ -352,12 +381,8 @@ char* forbidden_checkout(){
 }
 
 char* print_response(response_info* response){
-	char* response_string;
-	if (response->info->command == REDIRECT)	
-		response_string = new_response_header("303", "See Other");
-	else	
-		response_string = new_response_header("200", "OK");
-	
+	char* response_string = new_response_header(response->status_code, response->status_msg);
+
 	time_t raw_time;
 	time(&raw_time);
 	char* time_string = get_gm_time_string(&raw_time);
