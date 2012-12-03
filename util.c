@@ -390,7 +390,7 @@ char* build_cookie_string(const char* name, const char* value, const char* max_a
 }
 
 
-char* get_time_string(time_t* raw_time) {
+char* get_gm_time_string(time_t* raw_time) {
 	struct tm* ptm;
 	ptm = gmtime(raw_time);	
 
@@ -407,3 +407,19 @@ char* get_time_string(time_t* raw_time) {
 	return time_string;
 }
 
+char* get_local_time_string(time_t* raw_time) {
+	struct tm* ptm;
+	ptm = localtime(raw_time);	
+
+	int max_size = 1000;
+	char* time_string = (char*)malloc(max_size);
+
+	int final_size = strftime(time_string, max_size, "%a, %d %b %Y %T %Z", ptm);
+
+	if (final_size < max_size) {
+		time_string[final_size] = '\0';
+	}
+
+	time_string = (char*)realloc(time_string, final_size+1);
+	return time_string;
+}
