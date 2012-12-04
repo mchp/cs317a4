@@ -2,11 +2,13 @@
  * File: service.c
  */
 
+#define _XOPEN_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -15,9 +17,10 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <time.h>
-
+#include <sys/stat.h>
 
 #include "service.h"
+
 
 void print_request(request_info* request) {
 	printf("------ Request Info --------\n");
@@ -81,6 +84,7 @@ void parse_request(char* buffer, request_info* request, int len){
 	request->content_length = http_parse_header_field(buffer, len, "Content-Length");
 	request->transfer_encoding = http_parse_header_field(buffer, len, "Transfer-Encoding");
 	request->cookie = http_parse_header_field(buffer, len, "Cookie");
+	request->if_modified_since = http_parse_header_field(buffer, len, "If-Modified-Since");
 	request->parameters = http_parse_path(http_parse_uri(buffer));
 	request->body = http_parse_body(buffer, len);
 }
@@ -125,11 +129,7 @@ void prepend_user_to_body(request_info* request, response_info* response) {
 }
 
 void set_content_length(response_info* response) {
-	char* content_len_val = (char*)malloc(strlen(response->body));
-	sprintf(content_len_val, "%d", (int)strlen(response->body));
-	content_len_val = (char*)realloc(content_len_val, strlen(content_len_val));
-
-	response->content_length = content_len_val;
+	response->content_length = itoa(strlen(response->body));
 }
 
 void handle_login(request_info* request, response_info* response) {
@@ -212,7 +212,59 @@ void handle_redirect (request_info* request, response_info* response){
 }
 
 void handle_getfile(request_info* request, response_info* response){
+
 	response->content_type = "application/octet-stream";
+
+	char* filename_encoded = extract_parameter(request->parameters, "filename");
+	char* filename = decode(filename_encoded, (char*)malloc(strlen(filename_encoded)+1));
+	
+	if (request->if_modified_since) {
+		struct tm since_time;
+		strptime(request->if_modified_since, "%a, %d %b %Y %T %Z", &since_time);
+
+		struct stat filestatus;
+    		stat(filename, &filestatus);
+
+		if (filestatus.st_ctime <= mktime(&since_time)) {
+			response->status_code = "304";
+			response->status_msg = "Not Modified";
+			response->body = "HTTP 304 Not Modified";
+
+			prepend_user_to_body(request, response);
+			set_content_length(response);
+
+			return;
+		} 
+	}
+
+
+	FILE* fd;
+	fd = fopen(filename, "r");
+
+	if (fd != NULL) {
+		response->transfer_encoding = "chunked";
+		int buffer_size = 100;
+		char buffer[buffer_size];
+
+		int read_bytes = fread(buffer, sizeof(char), buffer_size-3, fd);
+		response->body = (char*)malloc(1);
+		response->body[0] = '\0';
+		while (read_bytes) {
+			append(&(response->body), hitoa(read_bytes));
+			append(&(response->body), "\r\n");
+			buffer[read_bytes++]='\r';
+			buffer[read_bytes++] = '\n';
+			buffer[read_bytes] ='\0';
+			append(&(response->body), buffer);
+			read_bytes = fread(buffer, sizeof(char), buffer_size-3, fd);
+		}
+	} else {
+		response->status_code = "404";
+		response->status_msg = "Not Found";
+		response->body = "HTTP 404, not found";
+		prepend_user_to_body(request, response);
+		set_content_length(response);
+	}
 	//set response->last_modified
 }
 
@@ -452,23 +504,23 @@ char* print_response(response_info* response){
 	time_t raw_time;
 	time(&raw_time);
 	char* time_string = get_gm_time_string(&raw_time);
-	
 	add_header_field(&response_string, "Date", time_string);
 
 	add_header_field(&response_string, "Connection", response->connection);
 
 	add_header_field(&response_string, "Cache-Control", response->cache_control);
 
-	add_header_field(&response_string, "Content-Length", response->content_length);
+	if (response->content_length) {
+		add_header_field(&response_string, "Content-Length", response->content_length);
+	} else {
+		add_header_field(&response_string, "Transfer-Encoding", response->transfer_encoding);
+	}
 
 	add_header_field(&response_string, "Content-Type", response->content_type);
 
 	if (response->set_cookie) {
 		add_header_field(&response_string, "Set-Cookie", response->set_cookie);
 	}
-
-	//TODO figure out when to use transfer-encoding	
-	//add_header_field(&response_string, "Transfer-Encoding", response->info->transfer_encoding);
 
 	if (response->location)
 		add_header_field(&response_string, "Location", response->location);
@@ -477,8 +529,6 @@ char* print_response(response_info* response){
 
 	add_response_body(&response_string, response->body);
 	
-	
-	printf("%s\n", response_string);
 	free(time_string);
 	
 	return response_string;

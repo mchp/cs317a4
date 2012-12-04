@@ -29,4 +29,7 @@ char* extract_cookie(const char* cookie, const char* name);
 char* build_cookie_string(const char* name, const char* value, const char* expires, const char* domain, const char* path, int secure);
 char* get_gm_time_string(time_t* raw_time);
 char* get_local_time_string(time_t* raw_time);
+char* itoa(int number);
+char* hitoa(int number);
+void append(char** original, char* addage);
 #endif
