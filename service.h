@@ -42,6 +42,8 @@ typedef struct response_info{
 	char* last_modified;
 	char* set_cookie;
 	char* body;
+	char* more_cookies[12];
+	int num_extra_cookies;
 } response_info;
 
 void handle_client(int socket);

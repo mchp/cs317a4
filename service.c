@@ -135,7 +135,7 @@ void handle_login(request_info* request, response_info* response) {
 	printf("welcome %s\n", user_id);
 	if (user_id) {
 		char* max_age = "86400"; //24*60*60 i.e. 24 hours
-		response->set_cookie = build_cookie_string("username", user_id, max_age, "", "/", 0, true);
+		response->set_cookie = build_cookie_string("username", user_id, max_age, "", "/", 0);
 		response->body = user_logged_in(user_id);
 		free(user_id);
 	} else {
@@ -161,7 +161,7 @@ void handle_logout(request_info* request, response_info* response) {
 		strcpy(body+strlen(pre)+strlen(user_id), post);
 
 		response->body = body;
-		response->set_cookie = build_cookie_string("username", user_id, "-1", "", "/", 0, true);
+		response->set_cookie = build_cookie_string("username", user_id, "-1", "", "/", 0);
 
 		free(user_id);		
 	} else {
@@ -420,7 +420,7 @@ void handle_addcart(request_info* request, response_info* response){
 		char* item_num= get_free_item(request);	
 		if (item_num){
 			char* max_age = "86400"; //24*60*60 i.e. 24 hours
-			response->set_cookie = build_cookie_string(item_num, item, max_age, "", "/", 0, true);		
+			response->set_cookie = build_cookie_string(item_num, item, max_age, "", "/", 0);		
 			response->body = get_cookie_list(request, item, -1);
 			prepend_user_to_body(request, response);
 		}
@@ -442,9 +442,9 @@ void handle_delcart(request_info* request, response_info* response){
 		int i;
 		for (i=item_num -1; i<total_items-1;i++){			
 			char* max_age = "86400";			
-			response->set_cookie = build_cookie_string(item_cookies[i], extract_cookie(request->cookie, item_cookies[i+1]), max_age, "", "/", 0, true);
+			response->set_cookie = build_cookie_string(item_cookies[i], extract_cookie(request->cookie, item_cookies[i+1]), max_age, "", "/", 0);
 		}
-		response->set_cookie = build_cookie_string(item_cookies[total_items-1], extract_cookie(request->cookie, item_cookies[total_items-1]), "-1", "", "/", 0, true);
+		response->set_cookie = build_cookie_string(item_cookies[total_items-1], extract_cookie(request->cookie, item_cookies[total_items-1]), "-1", "", "/", 0);
 		response->body = get_cookie_list(request, NULL, item_num);			
 		prepend_user_to_body(request, response);		
 	}
@@ -470,32 +470,24 @@ void handle_checkout(request_info* request, response_info* response){
 		//delete all item cookies
 		int total_items = get_free_item_num(request);
 		int i;
-		if (total_items == 0)
-			return;
 		char* cookie_string;
-		if (total_items==1)
-			cookie_string = build_cookie_string(item_cookies[0], extract_cookie(request->cookie, item_cookies[0]), "-1", "", "/", 0, true);
-		else
-			cookie_string = build_cookie_string(item_cookies[0], extract_cookie(request->cookie, item_cookies[0]), "-1", "", "/", 0, false);
-		char* temp;
-		int temp_len;
-		int curr_len;
-		for (i=1; i<total_items-1; i++){
-			temp = build_cookie_string(item_cookies[i], extract_cookie(request->cookie, item_cookies[i]), "-1", "", "/", 0, false);
-			temp_len = strlen(temp);
+		if (total_items == 0){
+			set_content_length(response);
+			return;
+		}	
+		cookie_string = build_cookie_string(item_cookies[0], extract_cookie(request->cookie, item_cookies[0]), "-1", "", "/", 0);
+		//char* temp;
+		//int temp_len;
+		//int curr_len;
+		for (i=0; i<total_items; i++){
+			response->more_cookies[i] = build_cookie_string(item_cookies[i], extract_cookie(request->cookie, item_cookies[i]), "-1", "", "/", 0);
+			/*temp_len = strlen(temp);
 			curr_len = strlen(cookie_string);
 			cookie_string = (char*) realloc(cookie_string, temp_len+curr_len+1);
 			strcpy(cookie_string+curr_len, temp);
-			free(temp);		
+			free(temp);*/		
 		}
-		if (total_items>1){
-			temp = build_cookie_string(item_cookies[total_items-1], extract_cookie(request->cookie, item_cookies[total_items-1]), "-1", "", "/", 0, true);
-			temp_len = strlen(temp);
-			curr_len = strlen(cookie_string);
-			cookie_string = (char*) realloc(cookie_string, temp_len+curr_len+1);
-			strcpy(cookie_string+curr_len, temp);
-			free(temp);
-		}		
+		response->num_extra_cookies = total_items;		
 		response->set_cookie = cookie_string;
 		prepend_user_to_body(request, response);		
 	}
@@ -508,15 +500,6 @@ void handle_close(request_info* request, response_info* response){
 	//prepend_user_to_body(request, response);
 	set_content_length(response);
 	response->cache_control = "private";
-}
-
-
-void not_found_command(request_info* request, response_info* response){
-	response->status_code = "404";
-	response->status_msg = "Not Found";
-	response->body = "Command not found\n";
-
-	set_content_length(response);
 }
 
 
@@ -582,30 +565,6 @@ void build_response(request_info* request, response_info* response){
 		response->info->content_type = "text/plain";
 }
 
-char* forbidden_command(){
-	char* header = new_response_header("403", "Forbidden");
-	int header_len = strlen(header);
-	char* statement = "Command forbidden\n"; //there is no explicit instruction that this should be the statement
-	char* body = statement;		
-	int body_len = strlen(statement)+header_len+1;
-	body = (char*)realloc(header, body_len);
-	strcpy(body+header_len, statement);
-	body[body_len-1] = '\0';
-	return body;
-}
-
-char* forbidden_checkout(){
-	char* header = new_response_header("403", "Forbidden");
-	int header_len = strlen(header);
-	char* statement = "User must be logged in to checkout\n";
-	char* body = statement;		
-	int body_len = strlen(statement)+header_len+1;
-	body = (char*)realloc(header, body_len);
-	strcpy(body+header_len, statement);
-	body[body_len-1] = '\0';
-	return body;
-}
-
 char* print_response(response_info* response){
 	char* response_string = new_response_header(response->status_code, response->status_msg);
 
@@ -628,6 +587,12 @@ char* print_response(response_info* response){
 
 	if (response->set_cookie) {
 		add_header_field(&response_string, "Set-Cookie", response->set_cookie);
+	}
+	if (response->num_extra_cookies >0){
+		int i;		
+		for(i= 0; i<response->num_extra_cookies; i++){
+			add_header_field(&response_string, "Set-Cookie", response->more_cookies[i]);	
+		}
 	}
 
 	if (response->location) {
