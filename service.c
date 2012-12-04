@@ -331,9 +331,9 @@ char* get_cookie_list(request_info* request, char* item){
 	int total_items = get_free_item_num(request);
 	int i;
 	int offset = 0;
-	//char* num;
+	char* num;
 	int curr_cookie_len;
-	//int num_len;
+	int num_len;
 	char* curr_cookie;
 	char* punctuation = ". ";
 	int punctuation_len = strlen(punctuation);
@@ -341,10 +341,10 @@ char* get_cookie_list(request_info* request, char* item){
 	int end_line_len = strlen(end_line);
 
 	for(i=1; i<total_items; i++){
-		/*num = itoa(i, num, 10);
+		num = itoa(i);
 		num_len = strlen(num);
 		strcpy(cookie_list+offset, num);
-		offset+= num_len;*/
+		offset+= num_len;
 
 		strcpy(cookie_list+offset, punctuation);
 		offset+=punctuation_len;		
@@ -361,9 +361,9 @@ char* get_cookie_list(request_info* request, char* item){
 	}
 
 
-	/*char* num2 = itoa(total_items, num2, 10);
+	char* num2 = itoa(total_items);
 	strcpy(cookie_list+offset, num2);
-	offset+= strlen(num2);*/
+	offset+= strlen(num2);
 	
 	strcpy(cookie_list+offset, punctuation);
 	offset+=punctuation_len;		
@@ -466,9 +466,9 @@ char* not_found_command(){
 	char* header = new_response_header("404", "Not Found");
 	int header_len = strlen(header);
 	char* statement = "Command not found\n"; 		
-	char* body = statement;		
-	int body_len = strlen(statement)+header_len+1;
-	body = (char*)realloc(header, body_len);
+	char* body = (char*) malloc (header_len + strlen(statement) +1);
+	int body_len = strlen(statement)+header_len+1;	
+	strcpy(body, header);
 	strcpy(body+header_len, statement);
 	body[body_len-1] = '\0';
 	return body;
@@ -524,7 +524,7 @@ char* print_response(response_info* response){
 
 	if (response->location)
 		add_header_field(&response_string, "Location", response->location);
-	else if (response->last_modified)
+	if (response->last_modified)
 		add_header_field(&response_string, "Last-Modified", response->last_modified);
 
 	add_response_body(&response_string, response->body);

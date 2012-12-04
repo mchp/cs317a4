@@ -331,9 +331,9 @@ char* get_cookie_list(request_info* request, char* item){
 	int total_items = get_free_item_num(request);
 	int i;
 	int offset = 0;
-	//char* num;
+	char* num;
 	int curr_cookie_len;
-	//int num_len;
+	int num_len;
 	char* curr_cookie;
 	char* punctuation = ". ";
 	int punctuation_len = strlen(punctuation);
@@ -341,10 +341,10 @@ char* get_cookie_list(request_info* request, char* item){
 	int end_line_len = strlen(end_line);
 
 	for(i=1; i<total_items; i++){
-		/*num = itoa(i, num, 10);
+		num = itoa(i);
 		num_len = strlen(num);
 		strcpy(cookie_list+offset, num);
-		offset+= num_len;*/
+		offset+= num_len;
 
 		strcpy(cookie_list+offset, punctuation);
 		offset+=punctuation_len;		
@@ -361,9 +361,9 @@ char* get_cookie_list(request_info* request, char* item){
 	}
 
 
-	/*char* num2 = itoa(total_items, num2, 10);
+	char* num2 = itoa(total_items);
 	strcpy(cookie_list+offset, num2);
-	offset+= strlen(num2);*/
+	offset+= strlen(num2);
 	
 	strcpy(cookie_list+offset, punctuation);
 	offset+=punctuation_len;		
@@ -425,13 +425,7 @@ void build_response(request_info* request, response_info* response){
 			handle_browser(request, response);
 			break;
 		case REDIRECT:
-<<<<<<< HEAD
 			handle_redirect(request, response);
-=======
-			response->status_code = "303";
-			response->status_msg = "See Other"; //???
-			response->location = extract_parameter(request->parameters, "url");
->>>>>>> bb386c75a1e3fbb7b7662b39023c9839b59b204f
 			break;
 		case GET_FILE:
 			handle_getfile(request, response);
@@ -528,20 +522,10 @@ char* print_response(response_info* response){
 		add_header_field(&response_string, "Set-Cookie", response->set_cookie);
 	}
 
-<<<<<<< HEAD
-	//TODO figure out when to use transfer-encoding	
-	//add_header_field(&response_string, "Transfer-Encoding", response->info->transfer_encoding);
-
 	if (response->location)
 		add_header_field(&response_string, "Location", response->location);
-	else if (response->last_modified)
+	if (response->last_modified)
 		add_header_field(&response_string, "Last-Modified", response->last_modified);
-=======
-	if (response->info->command == REDIRECT)
-		add_header_field(&response_string, "Location", response->location);
-	/*else if (response->info->command == GET_FILE)
-		add_header_field(&response_string, "Last-Modified", response->last_modified);*/
->>>>>>> bb386c75a1e3fbb7b7662b39023c9839b59b204f
 
 	add_response_body(&response_string, response->body);
 	
