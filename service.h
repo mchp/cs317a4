@@ -6,7 +6,6 @@
 #define _SERVICE_H_
 
 #include "util.h"
-#include <stdbool.h>
 
 typedef enum {
     LOGIN, LOGOUT, SERVERTIME, BROWSER,
@@ -25,11 +24,15 @@ typedef struct request_info{
 	char* content_type;
 	char* transfer_encoding;
 	char* cookie;
+	char* if_modified_since;
 	const char* parameters;
+	const char* body;
 } request_info;
 
 typedef struct response_info{
 	struct request_info* info;
+	char* status_code;
+	char* status_msg;
 	char* content_type;
 	char* connection;
 	char* cache_control;
@@ -47,8 +50,6 @@ command_type parse_command(char* uri);
 void build_response(request_info* request, response_info* response);
 char* print_response(response_info* response);
 char* forbidden_command();
-char* not_found_command();
 char* forbidden_checkout();
-bool all_params_present(request_info* request);
 
 #endif

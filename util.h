@@ -5,6 +5,8 @@
 #ifndef _UTIL_H_
 #define _UTIL_H_
 
+#include <stdbool.h>
+
 typedef enum {
     METHOD_GET, METHOD_POST, METHOD_HEAD, METHOD_OPTIONS, METHOD_PUT,
     METHOD_DELETE, METHOD_TRACE, METHOD_CONNECT, METHOD_UNKNOWN
@@ -26,7 +28,10 @@ void add_header_field(char** header, const char* name, const char* value);
 void add_response_body(char** response, const char* body);
 char* extract_parameter(const char* parameters, const char* name);
 char* extract_cookie(const char* cookie, const char* name);
-char* build_cookie_string(const char* name, const char* value, const char* expires, const char* domain, const char* path, int secure);
+char* build_cookie_string(const char* name, const char* value, const char* expires, const char* domain, const char* path, int secure, bool end);
 char* get_gm_time_string(time_t* raw_time);
 char* get_local_time_string(time_t* raw_time);
+char* itoa(int number);
+char* hitoa(int number);
+void append(char** original, char* addage);
 #endif

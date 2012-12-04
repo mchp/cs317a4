@@ -13,4 +13,4 @@ util.o: util.c util.h
 test_util.o: test_util.c util.h
 
 clean:
-	-rm -rf cshttp.o service.o util.o cshttp
+	-rm -rf cshttp.o service.o util.o cshttp *~ test_util.o
