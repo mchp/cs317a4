@@ -392,6 +392,9 @@ void handle_checkout(request_info* request, response_info* response){
 void handle_close(request_info* request, response_info* response){
 	response->connection = "close";
 	response->body = "The connection will now be closed";
+	//prepend_user_to_body(request, response);
+	set_content_length(response);
+	response->cache_control = "private";
 }
 
 
