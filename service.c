@@ -213,17 +213,18 @@ void handle_redirect (request_info* request, response_info* response){
 
 void handle_getfile(request_info* request, response_info* response){
 
-	response->content_type = "application/octet-stream";
-
 	char* filename_encoded = extract_parameter(request->parameters, "filename");
 	char* filename = decode(filename_encoded, (char*)malloc(strlen(filename_encoded)+1));
 	
+	struct stat filestatus;
+    	stat(filename, &filestatus);
+	
+	response->last_modified = get_local_time_string(&filestatus.st_ctime);
+
 	if (request->if_modified_since) {
 		struct tm since_time;
 		strptime(request->if_modified_since, "%a, %d %b %Y %T %Z", &since_time);
 
-		struct stat filestatus;
-    		stat(filename, &filestatus);
 
 		if (filestatus.st_ctime <= mktime(&since_time)) {
 			response->status_code = "304";
@@ -237,12 +238,12 @@ void handle_getfile(request_info* request, response_info* response){
 		} 
 	}
 
-
 	FILE* fd;
 	fd = fopen(filename, "r");
 
 	if (fd != NULL) {
 		response->transfer_encoding = "chunked";
+		response->content_type = "application/octet-stream";
 		int buffer_size = 100;
 		char buffer[buffer_size];
 
@@ -258,6 +259,9 @@ void handle_getfile(request_info* request, response_info* response){
 			append(&(response->body), buffer);
 			read_bytes = fread(buffer, sizeof(char), buffer_size-3, fd);
 		}
+
+		append(&(response->body), "0\r\n\r\n");
+		
 	} else {
 		response->status_code = "404";
 		response->status_msg = "Not Found";
@@ -265,7 +269,6 @@ void handle_getfile(request_info* request, response_info* response){
 		prepend_user_to_body(request, response);
 		set_content_length(response);
 	}
-	//set response->last_modified
 }
 
 void handle_putfile(request_info* request, response_info* response){
@@ -522,13 +525,16 @@ char* print_response(response_info* response){
 		add_header_field(&response_string, "Set-Cookie", response->set_cookie);
 	}
 
-	if (response->location)
+	if (response->location) {
 		add_header_field(&response_string, "Location", response->location);
-	if (response->last_modified)
+	}
+
+	if (response->last_modified){
 		add_header_field(&response_string, "Last-Modified", response->last_modified);
+	}
 
 	add_response_body(&response_string, response->body);
-	
+	printf("%s\n", response_string);
 	free(time_string);
 	
 	return response_string;
