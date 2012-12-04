@@ -58,7 +58,9 @@ void handle_client(int socket) {
 		return;
 	}
 
+
 	print_request(&request);
+
 	build_response(&request, &response);
 	response_string = print_response(&response);
 
@@ -125,6 +127,7 @@ void set_content_length(response_info* response) {
 		response->content_length = "0";
 	else
 		response->content_length = itoa(strlen(response->body));
+
 }
 
 void handle_login(request_info* request, response_info* response) {
@@ -336,6 +339,7 @@ int get_free_item_num(request_info* request){
 	return -1;
 }
 
+
 char* get_cookie_list(request_info* request, char* item, int del_index){
 	char* item_cookies[] = {"item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12"};	
 	char* cookie_list= (char*)malloc(12*64*sizeof(char));
@@ -369,7 +373,6 @@ char* get_cookie_list(request_info* request, char* item, int del_index){
 
 		strcpy(cookie_list+offset, punctuation);
 		offset+=punctuation_len;		
-		
 		if(i==del_index){
 			item_index = i;
 			skip = true;
@@ -377,6 +380,7 @@ char* get_cookie_list(request_info* request, char* item, int del_index){
 	
 		
 		curr_cookie = extract_cookie(request->cookie, item_cookies[item_index]);
+
 		curr_cookie_len = strlen(curr_cookie);	
 		strcpy(cookie_list+offset, curr_cookie);		
 		offset+= curr_cookie_len;
@@ -501,6 +505,18 @@ void handle_checkout(request_info* request, response_info* response){
 void handle_close(request_info* request, response_info* response){
 	response->connection = "close";
 	response->body = "The connection will now be closed";
+	//prepend_user_to_body(request, response);
+	set_content_length(response);
+	response->cache_control = "private";
+}
+
+
+void not_found_command(request_info* request, response_info* response){
+	response->status_code = "404";
+	response->status_msg = "Not Found";
+	response->body = "Command not found\n";
+
+	set_content_length(response);
 }
 
 
