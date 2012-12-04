@@ -51,8 +51,6 @@ command_type parse_command(char* uri);
 void build_response(request_info* request, response_info* response);
 char* print_response(response_info* response);
 char* forbidden_command();
-char* not_found_command();
 char* forbidden_checkout();
-bool all_params_present(request_info* request);
 
 #endif

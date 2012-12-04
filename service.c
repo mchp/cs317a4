@@ -59,18 +59,10 @@ void handle_client(int socket) {
 	}
 
 	//print_request(&request);
+	build_response(&request, &response);
+	response_string = print_response(&response);
 
-
-	if (!all_params_present(&request)) {
-		response_string = forbidden_command();
-	} else if (request.command == NOTA){
-		response_string = not_found_command();
-	} else if (request.command == CHECKOUT && extract_cookie(request.cookie, "username") ==NULL){
-		response_string = forbidden_checkout();
-	} else {
-		build_response(&request, &response);
-		response_string = print_response(&response);
-	}
+	//TODO send in a loop since we can't guarantee everything goes through once
 	send(socket,response_string, strlen(response_string), 0);
 } 
 
@@ -402,6 +394,15 @@ void handle_close(request_info* request, response_info* response){
 	response->body = "The connection will now be closed";
 }
 
+
+void not_found_command(request_info* request, response_info* response){
+	response->status_code = "404";
+	response->status_msg = "Not Found";
+	response->body = "Command not found\n";
+
+	set_content_length(response);
+}
+
 void build_response(request_info* request, response_info* response){
 
 	memset(response, 0, sizeof(response_info));
@@ -449,32 +450,11 @@ void build_response(request_info* request, response_info* response){
 			handle_close(request, response);
 			break;
 		case NOTA:
-			not_found_command();
+			not_found_command(request, response);
 			break;
 	}
 	if (response->info->content_type == NULL)
 		response->info->content_type = "text/plain";
-}
-
-bool all_params_present(request_info* request){
-	if ((request->command == BROWSER && request->user_agent == NULL) ||
-	    (request->command == REDIRECT && extract_parameter(request->parameters, "url")==NULL)||
-	    (request->command == LOGIN && extract_parameter(request->parameters, "username") ==NULL)||
-	    (request->command == ADD_CART && extract_parameter(request->parameters, "item") ==NULL))
-		return false;
-	return true;
-}
-
-char* not_found_command(){
-	char* header = new_response_header("404", "Not Found");
-	int header_len = strlen(header);
-	char* statement = "Command not found\n"; 		
-	char* body = (char*) malloc (header_len + strlen(statement) +1);
-	int body_len = strlen(statement)+header_len+1;	
-	strcpy(body, header);
-	strcpy(body+header_len, statement);
-	body[body_len-1] = '\0';
-	return body;
 }
 
 char* forbidden_command(){
