@@ -287,6 +287,7 @@ char* get_cookie_list(request_info* request, char* item){
 	int punctuation_len = strlen(punctuation);
 	char* end_line = "\r\n";
 	int end_line_len = strlen(end_line);
+	char* curr_cookie;
 
 	for(i=1; i<total_items; i++){
 		/*num = itoa(i, num, 10);
