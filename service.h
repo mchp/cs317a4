@@ -25,6 +25,7 @@ typedef struct request_info{
 	char* content_type;
 	char* transfer_encoding;
 	char* cookie;
+	char* if_modified_since;
 	const char* parameters;
 	const char* body;
 } request_info;
