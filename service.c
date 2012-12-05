@@ -401,6 +401,7 @@ char* get_cookie_list(request_info* request, char* item, int del_index){
 		append_cookie_list_item(cookie_list, &offset, i, item);
 	}
 	cookie_list[offset] = '\0';
+	cookie_list = (char*)realloc(cookie_list, offset+1);
 	return cookie_list;
 }
 
@@ -452,46 +453,33 @@ void handle_delcart(request_info* request, response_info* response){
 
 void handle_checkout(request_info* request, response_info* response){
 	response->cache_control = "no-cache";
-	char* item_cookies[] = {"item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12"};	
+	char* item_names[] = {"item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12"};	
 	char* user_id = extract_cookie(request->cookie, "username");
 	if (!user_id){
 		response->status_code = "403";
 		response->status_msg = "Forbidden";
 		response->body = "User must be logged in to checkout\n";
+		prepend_user_to_body(request, response);
 	} else{
-		response->body = get_cookie_list(request, NULL, -1);
-		//make a file or append a file
+		response->body = get_cookie_list(request, NULL, 14);
+		prepend_user_to_body(request, response);
+
+		//make a file or append a file		
 		FILE * fd;
 		char* filename = "CHECKOUT.txt";
 		fd = fopen (filename,"a");
-		fputs(get_cookie_list(request, NULL, 14), fd);
+		fputs(response->body, fd);
 		fclose(fd);
 
 		//delete all item cookies
-		int total_items = get_free_item_num(request);
-		int i;
-		char* cookie_string;
-		if (total_items == 0){
-			set_content_length(response);
-			return;
-		}	
-		cookie_string = build_cookie_string(item_cookies[0], extract_cookie(request->cookie, item_cookies[0]), "-1", "/");
-		//char* temp;
-		//int temp_len;
-		//int curr_len;
-		for (i=1; i<total_items; i++){
-			response->more_cookies[i] = build_cookie_string(item_cookies[i], "", "-1", "/");
-			/*temp_len = strlen(temp);
-			curr_len = strlen(cookie_string);
-			cookie_string = (char*) realloc(cookie_string, temp_len+curr_len+1);
-			strcpy(cookie_string+curr_len, temp);
-			free(temp);*/		
+		int extra = 0;
+		while(has_cookie(request->cookie, item_names[extra])){
+			response->more_cookies[extra] = build_cookie_string(item_names[extra], "", "-1", "/");
+			extra++;
 		}
-		response->num_extra_cookies = total_items;		
-		response->set_cookie = cookie_string;		
+		response->num_extra_cookies = extra;	
 	}
 
-	prepend_user_to_body(request, response);
 	set_content_length(response);
 }
 
