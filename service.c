@@ -352,18 +352,6 @@ char* get_free_item(request_info* request){
 	return NULL;
 }
 
-int get_free_item_num(request_info* request){
-	char* item_cookies[] = {"item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12"};
-	int max_num_cookies = 12;
-	int i;
-	for (i=0; i<max_num_cookies; i++) {
-		if (!has_cookie(request->cookie, item_cookies[i])) {
-			return i;
-		}
-	}
-	return -1;
-}
-
 void append_cookie_list_item(char* list, int* offset, int pos, char* item) {
 	int off = *offset;
 
