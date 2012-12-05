@@ -335,20 +335,12 @@ void build_cookie_field(char* cookie_string, int* actual_len, const char* name, 
 	strcpy(cookie_string+*actual_len, name);
 	*actual_len += strlen(name);
 	
-	//char* encoded_value = (char*)malloc(strlen(value)*3+1);
-	
 	strcpy(cookie_string+*actual_len, value);
 	*actual_len += strlen(value);
-
-	
-	//strcpy(cookie_string+*actual_len, encode(value, encoded_value));
-	//*actual_len += strlen(encoded_value);
-
-	//free(encoded_value);
 }
 
-char* build_cookie_string(const char* name, const char* value, const char* max_age, const char* domain, const char* path, int secure) {
-	int max_len = 3*strlen(name)+3*strlen(value) +3*strlen(domain)+3*strlen(path)+ 40; //sorry about magic number everywhere; will fix
+char* build_cookie_string(const char* name, const char* value, const char* max_age, const char* path) {
+	int max_len = 3*strlen(name)+3*strlen(value)+3*strlen(path)+ 40; //sorry about magic number everywhere; will fix
 	int actual_len = 0;
 	
 	char* cookie_string = (char*)malloc(max_len);
@@ -370,20 +362,11 @@ char* build_cookie_string(const char* name, const char* value, const char* max_a
 	if (strlen(max_age) != 0) {
 		build_cookie_field(cookie_string, &actual_len, "; max-age=", max_age);
 	}
-	
-	if (strlen(domain) != 0) {
-		build_cookie_field(cookie_string, &actual_len, "; domain=", domain);
-	}
 
 	if (strlen(path) != 0) {
 		build_cookie_field(cookie_string, &actual_len, "; path=", path);
 	}
 
-	if (secure) {
-		build_cookie_field(cookie_string, &actual_len, "; secure", "");
-	}
-
-	
 	cookie_string[actual_len] = '\0';
 
 	cookie_string = (char*)realloc(cookie_string, actual_len+1);

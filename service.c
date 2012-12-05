@@ -21,51 +21,72 @@
 
 #include "service.h"
 
-
-void print_request(request_info* request) {
-	printf("------ Request Info --------\n");
-	printf("req_type: %d\n", request->req_type);
-	printf("command: %d\n", request->command);
-	printf("cache_control: %s\n", request->cache_control);
-	printf("connection: %s\n", request->connection);
-	printf("host: %s\n", request->host);
-	printf("user_agent: %s\n", request->user_agent);
-	printf("content_length: %s\n", request->content_length);
-	printf("cookie:%s\n", request->cookie);
-	printf("transfer_encoding:%s\n", request->transfer_encoding);
-	printf("parameters:%s\n", request->parameters);
-	printf("body: %s\n", request->body);
-	printf("---- End of Request Info ------\n");
-}
-
 void handle_client(int socket) {
     
 	int len = 10000;
 	int curr_len = 0;
-	char* request_string = malloc(len);
+	char* request_string = (char*)malloc(len);
 	char* response_string;
 
 	request_info request;
 	response_info response;
 
 	while(http_header_complete(request_string, curr_len) == -1) {
-		curr_len += recv(socket, request_string+curr_len, len-curr_len,0);	
-	}
-	//printf("%s\n", request_string);
-	parse_request(request_string, &request, len);
+		int bytes_received = recv(socket, request_string+curr_len, len-curr_len,0);
+		if (bytes_received == 0) {
+			free(request_string);
+			return;
+		}
+		curr_len += bytes_received;
 
+		if (curr_len >= len/2) {
+			len *= 2;
+			request_string = (char*)realloc(request_string, len);
+		}
+	}
+
+	parse_request(request_string, &request, len);
 	if (!strncasecmp(request.parameters, "/favicon.ico", strlen("/favicon.ico"))) {
+		free(request_string);
 		return;
 	}
 
+	
+	if (request.content_length) {
+		const char* body_so_far = http_parse_body(request_string, len);
 
-	print_request(&request);
+		int body_len = atoi(request.content_length);
+		curr_len = strlen(body_so_far);
+		if (curr_len < body_len) {
+			char* body = (char*)malloc(body_len);
+			strcpy(body, body_so_far);
 
+			while (curr_len < body_len) {
+				int bytes_received = recv(socket, body+curr_len, body_len-curr_len,0);
+	
+				if (bytes_received <= 0) {
+					free(request_string);
+					return;
+				}
+	
+				curr_len += bytes_received;
+			}
+			request.body = body;	
+		} else {
+			request.body = body_so_far;
+		}
+	}
 	build_response(&request, &response);
 	response_string = print_response(&response);
 
-	//TODO send in a loop since we can't guarantee everything goes through once
-	send(socket,response_string, strlen(response_string), 0);
+	int total_len = strlen(response_string);
+	curr_len = 0;
+	while (curr_len < total_len) {
+		curr_len += send(socket,response_string+curr_len, total_len - curr_len, 0);	
+	}
+
+	free(request_string);
+	free(response_string);
 } 
 
 void parse_request(char* buffer, request_info* request, int len){
@@ -80,7 +101,6 @@ void parse_request(char* buffer, request_info* request, int len){
 	request->cookie = http_parse_header_field(buffer, len, "Cookie");
 	request->if_modified_since = http_parse_header_field(buffer, len, "If-Modified-Since");
 	request->parameters = http_parse_path(http_parse_uri(buffer));
-	request->body = http_parse_body(buffer, len);
 }
 
 command_type parse_command(char* uri){
@@ -109,15 +129,15 @@ char* user_logged_in(const char* username) {
 void prepend_user_to_body(request_info* request, response_info* response) {
 	char* user_id = extract_cookie(request->cookie, "username");
 	if (user_id) {
-		char* logged_in_str = user_logged_in(user_id);
-		int logged_in_str_len = strlen(logged_in_str);
-		int body_len = strlen(response->body)+logged_in_str_len+1;
-		user_id = (char*)realloc(logged_in_str, body_len);
+		if (response->body) {
+			char* logged_in_str = user_logged_in(user_id);
+			int logged_in_str_len = strlen(logged_in_str);
+			int body_len = strlen(response->body)+logged_in_str_len+1;
+			user_id = (char*)realloc(logged_in_str, body_len);
 
-		strcpy(user_id+logged_in_str_len, response->body);
-		user_id[body_len-1] = '\0';
-
-		free(response->body);
+			strcpy(user_id+logged_in_str_len, response->body);
+			user_id[body_len-1] = '\0';
+		}
 		response->body = user_id;
 	}
 }
@@ -130,12 +150,18 @@ void set_content_length(response_info* response) {
 
 }
 
+void command_forbidden(response_info* response) {
+	response->status_code = "403";
+	response->status_msg = "Forbidden";
+	response->body = "Command forbidden\n";
+}
+
 void handle_login(request_info* request, response_info* response) {
 	char* user_id = extract_parameter(request->parameters, "username");	
 	printf("welcome %s\n", user_id);
 	if (user_id) {
 		char* max_age = "86400"; //24*60*60 i.e. 24 hours
-		response->set_cookie = build_cookie_string("username", user_id, max_age, "", "/", 0);
+		response->set_cookie = build_cookie_string("username", user_id, max_age, "/");
 		response->body = user_logged_in(user_id);
 		free(user_id);
 	} else {
@@ -161,7 +187,7 @@ void handle_logout(request_info* request, response_info* response) {
 		strcpy(body+strlen(pre)+strlen(user_id), post);
 
 		response->body = body;
-		response->set_cookie = build_cookie_string("username", user_id, "-1", "", "/", 0);
+		response->set_cookie = build_cookie_string("username", user_id, "-1", "/");
 
 		free(user_id);		
 	} else {
@@ -184,26 +210,14 @@ void handle_servertime(request_info* request, response_info* response) {
 	response->cache_control = "no-cache";
 }
 
-void handle_browser(request_info* request, response_info* response){
-	
-	const char* userAgent_str = "User-Agent: ";
-	int userAgent_str_len = strlen(userAgent_str);	
+void handle_browser(request_info* request, response_info* response){	
 	char* userAgent = request->user_agent;
 	if (userAgent== NULL){
-		response->status_code = "403";
-		response->status_msg = "Forbidden";
-		response->body = "Command forbidden\n";
+		command_forbidden(response);
+	} else{
+		response->body = request->user_agent;
 	}
-	else{	
-		int userAgent_len = strlen(userAgent);
-		char* body = (char*) malloc (userAgent_str_len + userAgent_len+1);	
-		strcpy(body, userAgent_str);
-		strcpy(body+userAgent_str_len, userAgent);
-		strcpy(body+userAgent_str_len+userAgent_len, "\n");
-	
-		response->body = body;
-		prepend_user_to_body(request, response);
-	}
+	prepend_user_to_body(request, response);
 	set_content_length(response);
 	response->cache_control = "private";
 }
@@ -213,20 +227,23 @@ void handle_redirect (request_info* request, response_info* response){
 	response->status_msg = "See Other"; 
 	response->location = extract_parameter(request->parameters, "url");
 	if (response->location == NULL){
-		response->status_code = "403";
-		response->status_msg = "Forbidden";
-		response->body = "Command forbidden\n";
+		command_forbidden(response);
 	}
-	else 	
-		prepend_user_to_body(request, response);	
+	prepend_user_to_body(request, response);
 	set_content_length(response);
 }
 
 void handle_getfile(request_info* request, response_info* response){
-
 	char* filename_encoded = extract_parameter(request->parameters, "filename");
+	if (!filename_encoded) {
+		command_forbidden(response);
+
+		prepend_user_to_body(request, response);
+		set_content_length(response);
+		return;
+	}
+
 	char* filename = decode(filename_encoded, (char*)malloc(strlen(filename_encoded)+1));
-	
 	struct stat filestatus;
     	stat(filename, &filestatus);
 	
@@ -283,8 +300,20 @@ void handle_getfile(request_info* request, response_info* response){
 }
 
 void handle_putfile(request_info* request, response_info* response){
+
+	response->cache_control = "no-cache";
 	char* filename = extract_parameter(request->body, "filename");
+
+	if (!filename) {
+		command_forbidden(response);
+
+		prepend_user_to_body(request, response);
+		set_content_length(response);
+		return;
+	}
+
 	int filename_len = strlen(filename);
+
 	FILE * fd;
 	fd = fopen (filename,"w");
 	if (fd != NULL) {
@@ -304,11 +333,9 @@ void handle_putfile(request_info* request, response_info* response){
 		response->status_msg = "Forbidden";
 		response->body = "HTTP 403, forbidden";
 	}
-
 	prepend_user_to_body(request, response);
 	set_content_length(response);
 
-	response->cache_control = "no-cache";
 }
 
 char* get_free_item(request_info* request){
@@ -412,19 +439,16 @@ char* get_cookie_list(request_info* request, char* item, int del_index){
 void handle_addcart(request_info* request, response_info* response){	
 	char* item = extract_parameter(request->parameters, "item");
 	if (item == NULL){
-		response->status_code = "403";
-		response->status_msg = "Forbidden";
-		response->body = "Command forbidden\n";
-	}
-	else{
+		command_forbidden(response);
+	} else{
 		char* item_num= get_free_item(request);	
 		if (item_num){
 			char* max_age = "86400"; //24*60*60 i.e. 24 hours
-			response->set_cookie = build_cookie_string(item_num, item, max_age, "", "/", 0);		
-			response->body = get_cookie_list(request, item, -1);
-			prepend_user_to_body(request, response);
+			response->set_cookie = build_cookie_string(item_num, item, max_age, "/");		
+			response->body = get_cookie_list(request, item, -1);		
 		}
 	}
+	prepend_user_to_body(request, response);
 	set_content_length(response);
 }
 
@@ -432,22 +456,19 @@ void handle_delcart(request_info* request, response_info* response){
 	char* item_cookies[] = {"item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12"};	
 	char* item = extract_parameter(request->parameters, "itemnr");
 	if (item == NULL){
-		response->status_code = "403";
-		response->status_msg = "Forbidden";
-		response->body = "Command forbidden\n";
-	}
-	else{
+		command_forbidden(response);
+	} else{
 		int total_items = get_free_item_num(request);		
 		int item_num= atoi(item);
 		int i;
 		for (i=item_num -1; i<total_items-1;i++){			
 			char* max_age = "86400";			
-			response->set_cookie = build_cookie_string(item_cookies[i], extract_cookie(request->cookie, item_cookies[i+1]), max_age, "", "/", 0);
+			response->set_cookie = build_cookie_string(item_cookies[i], extract_cookie(request->cookie, item_cookies[i+1]), max_age, "/");
 		}
-		response->set_cookie = build_cookie_string(item_cookies[total_items-1], extract_cookie(request->cookie, item_cookies[total_items-1]), "-1", "", "/", 0);
-		response->body = get_cookie_list(request, NULL, item_num);			
-		prepend_user_to_body(request, response);		
+		response->set_cookie = build_cookie_string(item_cookies[total_items-1], extract_cookie(request->cookie, item_cookies[total_items-1]), "-1", "/");
+		response->body = get_cookie_list(request, NULL, item_num);					
 	}
+	prepend_user_to_body(request, response);
 	set_content_length(response);
 }
 
@@ -457,8 +478,7 @@ void handle_checkout(request_info* request, response_info* response){
 		response->status_code = "403";
 		response->status_msg = "Forbidden";
 		response->body = "User must be logged in to checkout\n";
-	}
-	else{
+	} else{
 		response->body = get_cookie_list(request, NULL, -1);
 		//make a file or append a file
 		FILE * fd;
@@ -475,12 +495,12 @@ void handle_checkout(request_info* request, response_info* response){
 			set_content_length(response);
 			return;
 		}	
-		cookie_string = build_cookie_string(item_cookies[0], extract_cookie(request->cookie, item_cookies[0]), "-1", "", "/", 0);
+		cookie_string = build_cookie_string(item_cookies[0], extract_cookie(request->cookie, item_cookies[0]), "-1", "/");
 		//char* temp;
 		//int temp_len;
 		//int curr_len;
 		for (i=0; i<total_items; i++){
-			response->more_cookies[i] = build_cookie_string(item_cookies[i], extract_cookie(request->cookie, item_cookies[i]), "-1", "", "/", 0);
+			response->more_cookies[i] = build_cookie_string(item_cookies[i], extract_cookie(request->cookie, item_cookies[i]), "-1", "/");
 			/*temp_len = strlen(temp);
 			curr_len = strlen(cookie_string);
 			cookie_string = (char*) realloc(cookie_string, temp_len+curr_len+1);
@@ -497,7 +517,7 @@ void handle_checkout(request_info* request, response_info* response){
 void handle_close(request_info* request, response_info* response){
 	response->connection = "close";
 	response->body = "The connection will now be closed";
-	//prepend_user_to_body(request, response);
+	prepend_user_to_body(request, response);
 	set_content_length(response);
 	response->cache_control = "private";
 }
@@ -507,7 +527,7 @@ void not_found_command(request_info* request, response_info* response){
 	response->status_code = "404";
 	response->status_msg = "Not Found";
 	response->body = "Command not found\n";
-
+	prepend_user_to_body(request, response);
 	set_content_length(response);
 }
 
@@ -557,12 +577,9 @@ void build_response(request_info* request, response_info* response){
 		case CLOSE:
 			handle_close(request, response);
 			break;
-		case NOTA:
+		default:
 			not_found_command(request, response);
-			break;
 	}
-	if (response->info->content_type == NULL)
-		response->info->content_type = "text/plain";
 }
 
 char* print_response(response_info* response){
