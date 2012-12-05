@@ -453,7 +453,8 @@ void handle_delcart(request_info* request, response_info* response){
 void handle_checkout(request_info* request, response_info* response){
 	response->cache_control = "no-cache";
 	char* item_cookies[] = {"item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12"};	
-	if (extract_cookie(request->cookie, "username") ==NULL){
+	char* user_id = extract_cookie(request->cookie, "username");
+	if (!user_id){
 		response->status_code = "403";
 		response->status_msg = "Forbidden";
 		response->body = "User must be logged in to checkout\n";
@@ -463,7 +464,7 @@ void handle_checkout(request_info* request, response_info* response){
 		FILE * fd;
 		char* filename = "CHECKOUT.txt";
 		fd = fopen (filename,"a");
-		fputs(get_cookie_list(request, NULL, -1), fd);
+		fputs(get_cookie_list(request, NULL, 14), fd);
 		fclose(fd);
 
 		//delete all item cookies
@@ -478,8 +479,8 @@ void handle_checkout(request_info* request, response_info* response){
 		//char* temp;
 		//int temp_len;
 		//int curr_len;
-		for (i=0; i<total_items; i++){
-			response->more_cookies[i] = build_cookie_string(item_cookies[i], extract_cookie(request->cookie, item_cookies[i]), "-1", "/");
+		for (i=1; i<total_items; i++){
+			response->more_cookies[i] = build_cookie_string(item_cookies[i], "", "-1", "/");
 			/*temp_len = strlen(temp);
 			curr_len = strlen(cookie_string);
 			cookie_string = (char*) realloc(cookie_string, temp_len+curr_len+1);
@@ -487,9 +488,10 @@ void handle_checkout(request_info* request, response_info* response){
 			free(temp);*/		
 		}
 		response->num_extra_cookies = total_items;		
-		response->set_cookie = cookie_string;
-		prepend_user_to_body(request, response);		
+		response->set_cookie = cookie_string;		
 	}
+
+	prepend_user_to_body(request, response);
 	set_content_length(response);
 }
 
