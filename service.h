@@ -14,7 +14,7 @@ typedef enum {
 } command_type;
 
 typedef struct request_info{
-	http_method req_type; //do we really need this?
+	http_method req_type;
 	command_type command;
 	char* cache_control;
 	char* connection;
@@ -40,6 +40,7 @@ typedef struct response_info{
 	char* transfer_encoding;
 	char* location;
 	char* last_modified;
+	char* allow;
 	char* set_cookie;
 	char* body;
 	char* more_cookies[12];

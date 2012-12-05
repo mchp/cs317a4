@@ -46,7 +46,7 @@ void handle_client(int socket) {
 	}
 
 	parse_request(request_string, &request, len);
-	
+
 	if (request.content_length) {
 		const char* body_so_far = http_parse_body(request_string, len);
 
@@ -71,6 +71,7 @@ void handle_client(int socket) {
 			request.body = body_so_far;
 		}
 	}
+
 	build_response(&request, &response);
 	response_string = print_response(&response);
 
@@ -476,7 +477,7 @@ void handle_checkout(request_info* request, response_info* response){
 
 void handle_close(request_info* request, response_info* response){
 	response->connection = "close";
-	response->body = "The connection will now be closed";
+	response->body = "The connection will now be closed.";
 	prepend_user_to_body(request, response);
 	set_content_length(response);
 	response->cache_control = "private";
@@ -494,6 +495,15 @@ void build_response(request_info* request, response_info* response){
 	response->cache_control = "public";
 	response->status_code = "200";
 	response->status_msg = "OK";
+
+	if (request->req_type != METHOD_POST && request->req_type != METHOD_GET) {
+		response->connection = "close";
+		response->status_code = "405";
+		response->status_msg = "Method Not Allowed";
+		response->allow = "GET, POST";
+		set_content_length(response);
+		return;
+	}
 
 	switch(request->command){
 		case LOGIN:
@@ -572,8 +582,13 @@ char* print_response(response_info* response){
 		add_header_field(&response_string, "Last-Modified", response->last_modified);
 	}
 
-	if (response->body)
+	if (response->allow) {
+		add_header_field(&response_string, "Allow", response->allow);
+	}
+
+	if (response->body) {
 		add_response_body(&response_string, response->body);
+	}
 	
 	printf("%s\n", response_string);
 	free(time_string);
