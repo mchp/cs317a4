@@ -28,6 +28,7 @@ void add_header_field(char** header, const char* name, const char* value);
 void add_response_body(char** response, const char* body);
 char* extract_parameter(const char* parameters, const char* name);
 char* extract_cookie(const char* cookie, const char* name);
+int has_cookie(const char* cookie, const char* name);
 char* build_cookie_string(const char* name, const char* value, const char* expires, const char* path);
 char* get_gm_time_string(time_t* raw_time);
 char* get_local_time_string(time_t* raw_time);

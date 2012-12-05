@@ -294,6 +294,21 @@ char* extract_parameter(const char* parameters, const char* name) {
 	return decoded_value;
 }
 
+int has_cookie(const char* cookie_string, const char* name) {
+	int total_len = strlen(cookie_string);
+	int name_len = strlen(name);
+	char* start_pos = memchr(cookie_string, '=', total_len);
+
+	while (start_pos != NULL) {
+		if (!strncasecmp(start_pos - name_len, name, name_len)) {
+			return true;
+		}
+		start_pos = memchr(start_pos+1, '=', total_len - (start_pos - cookie_string));
+	}
+
+	return false;
+}
+
 char* extract_cookie(const char* cookie_string, const char* name) {
 	int total_len = strlen(cookie_string);
 	int name_len = strlen(name);

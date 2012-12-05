@@ -340,99 +340,66 @@ void handle_putfile(request_info* request, response_info* response){
 
 char* get_free_item(request_info* request){
 	char* item_cookies[] = {"item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12"};
-	int i=0;
-	char* curr_cookie;
-	while (i<11){
-		curr_cookie = extract_cookie(request->cookie, item_cookies[i]);
-		if(curr_cookie)
-			i++;
-		else
+	int max_num_cookies = 12;
+	int i;
+	for (i=0; i<max_num_cookies; i++) {
+		if (!has_cookie(request->cookie, item_cookies[i])) {
 			return item_cookies[i];
+		}
 	}
+
 	return NULL;
 }
 
 int get_free_item_num(request_info* request){
 	char* item_cookies[] = {"item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12"};
-	int i=0;
-	char* curr_cookie;
-	while (i<11){
-		curr_cookie = extract_cookie(request->cookie, item_cookies[i]);
-		if(curr_cookie)
-			i++;
-		else
+	int max_num_cookies = 12;
+	int i;
+	for (i=0; i<max_num_cookies; i++) {
+		if (!has_cookie(request->cookie, item_cookies[i])) {
 			return i;
+		}
 	}
 	return -1;
 }
 
+void append_cookie_list_item(char* list, int* offset, int pos, char* item) {
+	int off = *offset;
+
+	strcpy(list+off, itoa(pos));
+	off += strlen(itoa(pos));
+	strcpy(list+off, ". ");
+	off += 2;
+	strcpy(list+off, item);
+	off += strlen(item);
+	list[off] = '\n';
+	off++;
+
+	*offset = off;
+}
 
 char* get_cookie_list(request_info* request, char* item, int del_index){
 	char* item_cookies[] = {"item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12"};	
-	char* cookie_list= (char*)malloc(12*64*sizeof(char));
-	int total_items = get_free_item_num(request);
-	int i;
+	char* cookie_list= (char*)malloc(12*(64+3)+1);
 	int offset = 0;
-	char* num;
-	int curr_cookie_len;
-	int num_len;
-	char* curr_cookie;
-	char* punctuation = ". ";
-	int punctuation_len = strlen(punctuation);
-	char* end_line = "\r\n";
-	int end_line_len = strlen(end_line);
-	int item_index;
-	bool skip= false;
 
-	for(i=1; i<=total_items; i++){
-		if(i== total_items && i == del_index)
-			return cookie_list;
-		if (skip){
-			if (i==total_items)
-				return cookie_list;
-			item_index = i;
-		}else		
-			item_index = i-1;		
-		num = itoa(i);
-		num_len = strlen(num);
-		strcpy(cookie_list+offset, num);
-		offset+= num_len;
-
-		strcpy(cookie_list+offset, punctuation);
-		offset+=punctuation_len;		
-		if(i==del_index){
-			item_index = i;
-			skip = true;
+	char* curr_cookie = extract_cookie(request->cookie, item_cookies[0]);
+	int i = 1;
+	while(curr_cookie) {
+		if (i<del_index) {
+			append_cookie_list_item(cookie_list, &offset, i, curr_cookie);
+		} else if (i>del_index){
+			append_cookie_list_item(cookie_list, &offset, i-1, curr_cookie);
 		}
-	
-		
-		curr_cookie = extract_cookie(request->cookie, item_cookies[item_index]);
-
-		curr_cookie_len = strlen(curr_cookie);	
-		strcpy(cookie_list+offset, curr_cookie);		
-		offset+= curr_cookie_len;
-		
-		strcpy(cookie_list+offset, end_line);
-		offset+= end_line_len;	
 
 		free(curr_cookie);
-	}
-	
-	if (item !=NULL){
-		char* num2 = itoa(total_items+1);
-		strcpy(cookie_list+offset, num2);
-		offset+= strlen(num2);
-		
-		strcpy(cookie_list+offset, punctuation);
-		offset+=punctuation_len;		
-	
-		strcpy(cookie_list+offset, item);		
-		offset+= strlen(item);
-		
-		strcpy(cookie_list+offset, end_line);
-		offset+= end_line_len;
+		curr_cookie = extract_cookie(request->cookie, item_cookies[i++]);
 	}
 
+	if (item) {
+		append_cookie_list_item(cookie_list, &offset, i, item);
+	}
+	cookie_list[offset] = '\0';
 	return cookie_list;
 }
 
@@ -443,9 +410,10 @@ void handle_addcart(request_info* request, response_info* response){
 	} else{
 		char* item_num= get_free_item(request);	
 		if (item_num){
-			char* max_age = "86400"; //24*60*60 i.e. 24 hours
-			response->set_cookie = build_cookie_string(item_num, item, max_age, "/");		
-			response->body = get_cookie_list(request, item, -1);		
+			response->set_cookie = build_cookie_string(item_num, item, "86400", "/");		
+			response->body = get_cookie_list(request, item, 14);		
+		} else {
+			response->body = "Cart full. Please proceed to checkout.";
 		}
 	}
 	prepend_user_to_body(request, response);
