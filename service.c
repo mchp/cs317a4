@@ -21,12 +21,9 @@
 
 #include "service.h"
 
-void handle_client(int socket) {
-    
-	int len = 10000;
+int service(int socket, char* request_string, char* response_string, int* length) {
+	int len = *length;
 	int curr_len = 0;
-	char* request_string = (char*)malloc(len);
-	char* response_string;
 
 	request_info request;
 	response_info response;
@@ -34,8 +31,7 @@ void handle_client(int socket) {
 	while(http_header_complete(request_string, curr_len) == -1) {
 		int bytes_received = recv(socket, request_string+curr_len, len-curr_len,0);
 		if (bytes_received == 0) {
-			free(request_string);
-			return;
+			return 1; //should not assume request end means close connection
 		}
 		curr_len += bytes_received;
 
@@ -44,7 +40,6 @@ void handle_client(int socket) {
 			request_string = (char*)realloc(request_string, len);
 		}
 	}
-
 	parse_request(request_string, &request, len);
 
 	if (request.content_length) {
@@ -60,8 +55,7 @@ void handle_client(int socket) {
 				int bytes_received = recv(socket, body+curr_len, body_len-curr_len,0);
 	
 				if (bytes_received <= 0) {
-					free(request_string);
-					return;
+					return 1;
 				}
 	
 				curr_len += bytes_received;
@@ -71,8 +65,8 @@ void handle_client(int socket) {
 			request.body = body_so_far;
 		}
 	}
-
 	build_response(&request, &response);
+
 	response_string = print_response(&response);
 
 	int total_len = strlen(response_string);
@@ -81,8 +75,32 @@ void handle_client(int socket) {
 		curr_len += send(socket,response_string+curr_len, total_len - curr_len, 0);	
 	}
 
+	*length = len;
+
+	return strncmp(response.connection, "close", strlen("close"));
+}
+
+void handle_client(int socket) {
+    
+	int len = 10000;
+	char* request_string = (char*)malloc(len);
+	char* response_string = NULL;
+
+	//persistent connection open
+	printf("connection opened\n");
+
+	int open = 1;
+	do {
+		open = service(socket, request_string, response_string, &len);
+	} while(open);
+
+	//persistent connection close
+	printf("connection closed\n");
+
 	free(request_string);
-	free(response_string);
+	if (response_string) {
+		free(response_string);
+	}
 } 
 
 void parse_request(char* buffer, request_info* request, int len){
@@ -491,7 +509,7 @@ void build_response(request_info* request, response_info* response){
 
 	//set some common fields that are true for most requests
 	response->content_type = "text/plain";
-	response->connection = "keep-alive";
+	response->connection = request->connection;
 	response->cache_control = "public";
 	response->status_code = "200";
 	response->status_msg = "OK";
@@ -590,7 +608,6 @@ char* print_response(response_info* response){
 		add_response_body(&response_string, response->body);
 	}
 	
-	printf("%s\n", response_string);
 	free(time_string);
 	
 	return response_string;
