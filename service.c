@@ -176,6 +176,7 @@ void handle_login(request_info* request, response_info* response) {
 }
 
 void handle_logout(request_info* request, response_info* response) {
+	response->cache_control = "no-cache";
 	char* user_id = extract_cookie(request->cookie, "username");
 	printf("bye bye %s\n", user_id);
 	if (user_id) {
@@ -403,7 +404,8 @@ char* get_cookie_list(request_info* request, char* item, int del_index){
 	return cookie_list;
 }
 
-void handle_addcart(request_info* request, response_info* response){	
+void handle_addcart(request_info* request, response_info* response){
+	response->cache_control = "no-cache";
 	char* item = extract_parameter(request->parameters, "item");
 	if (item == NULL){
 		command_forbidden(response);
@@ -421,26 +423,35 @@ void handle_addcart(request_info* request, response_info* response){
 }
 
 void handle_delcart(request_info* request, response_info* response){
-	char* item_cookies[] = {"item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12"};	
+	response->cache_control = "no-cache";
+	char* item_names[] = {"item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12"};	
 	char* item = extract_parameter(request->parameters, "itemnr");
+
 	if (item == NULL){
 		command_forbidden(response);
 	} else{
-		int total_items = get_free_item_num(request);		
-		int item_num= atoi(item);
-		int i;
-		for (i=item_num -1; i<total_items-1;i++){			
-			char* max_age = "86400";			
-			response->set_cookie = build_cookie_string(item_cookies[i], extract_cookie(request->cookie, item_cookies[i+1]), max_age, "/");
+		int del_item_num= atoi(item);
+		response->body = get_cookie_list(request, NULL, del_item_num);
+
+		char* curr_item = extract_cookie(request->cookie, item_names[del_item_num]);
+		int extra = 0;
+		while (curr_item) {
+			response->more_cookies[extra] = build_cookie_string(item_names[del_item_num-1], curr_item, "86400", "/");
+			free(curr_item);
+			del_item_num++;
+			extra++;
+			curr_item = extract_cookie(request->cookie, item_names[del_item_num]);
 		}
-		response->set_cookie = build_cookie_string(item_cookies[total_items-1], extract_cookie(request->cookie, item_cookies[total_items-1]), "-1", "/");
-		response->body = get_cookie_list(request, NULL, item_num);					
+		response->num_extra_cookies = extra;
+
+		response->set_cookie = build_cookie_string(item_names[del_item_num-1], "", "-1", "/");					
 	}
 	prepend_user_to_body(request, response);
 	set_content_length(response);
 }
 
 void handle_checkout(request_info* request, response_info* response){
+	response->cache_control = "no-cache";
 	char* item_cookies[] = {"item1","item2","item3","item4","item5","item6","item7","item8","item9","item10","item11","item12"};	
 	if (extract_cookie(request->cookie, "username") ==NULL){
 		response->status_code = "403";
