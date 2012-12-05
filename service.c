@@ -46,11 +46,6 @@ void handle_client(int socket) {
 	}
 
 	parse_request(request_string, &request, len);
-	if (!strncasecmp(request.parameters, "/favicon.ico", strlen("/favicon.ico"))) {
-		free(request_string);
-		return;
-	}
-
 	
 	if (request.content_length) {
 		const char* body_so_far = http_parse_body(request_string, len);
@@ -154,6 +149,14 @@ void command_forbidden(response_info* response) {
 	response->status_code = "403";
 	response->status_msg = "Forbidden";
 	response->body = "Command forbidden\n";
+}
+
+
+void command_not_found(request_info* request, response_info* response){
+	response->status_code = "404";
+	response->status_msg = "Not Found";
+	response->body = "Command not found.";
+	set_content_length(response);
 }
 
 void handle_login(request_info* request, response_info* response) {
@@ -480,14 +483,6 @@ void handle_close(request_info* request, response_info* response){
 }
 
 
-void not_found_command(request_info* request, response_info* response){
-	response->status_code = "404";
-	response->status_msg = "Not Found";
-	response->body = "Command not found\n";
-	prepend_user_to_body(request, response);
-	set_content_length(response);
-}
-
 void build_response(request_info* request, response_info* response){
 
 	memset(response, 0, sizeof(response_info));
@@ -535,7 +530,7 @@ void build_response(request_info* request, response_info* response){
 			handle_close(request, response);
 			break;
 		default:
-			not_found_command(request, response);
+			command_not_found(request, response);
 	}
 }
 
