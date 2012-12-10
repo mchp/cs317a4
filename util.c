@@ -259,6 +259,9 @@ void add_response_body(char** response, const char* body) {
 }
 
 char* extract_parameter(const char* parameters, const char* name) {
+	if (!parameters) {
+		return NULL;
+	}
 	int total_len = strlen(parameters);
 	int name_len = strlen(name);
 	int val_len = 0;
@@ -295,6 +298,9 @@ char* extract_parameter(const char* parameters, const char* name) {
 }
 
 int has_cookie(const char* cookie_string, const char* name) {
+	if (!cookie_string) {
+		return false;
+	}
 	int total_len = strlen(cookie_string);
 	int name_len = strlen(name);
 	char* start_pos = memchr(cookie_string, '=', total_len);
