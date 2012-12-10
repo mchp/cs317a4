@@ -228,7 +228,7 @@ char* new_response_header(char* code, char* message) {
 	strcpy(new_response+msg_start, message);
 	new_response[header_len-2] = '\n';
 	new_response[header_len-1] = '\0';
-	
+
 	return new_response;
 }
 
@@ -310,7 +310,14 @@ int has_cookie(const char* cookie_string, const char* name) {
 }
 
 char* extract_cookie(const char* cookie_string, const char* name) {
+	if (!cookie_string) {
+		return NULL;
+	}
 	int total_len = strlen(cookie_string);
+
+	if (total_len == 0) {
+		return NULL;
+	}
 	int name_len = strlen(name);
 	int val_len = 0;
 
@@ -349,7 +356,7 @@ char* extract_cookie(const char* cookie_string, const char* name) {
 void build_cookie_field(char* cookie_string, int* actual_len, const char* name, const char* value) {
 	strcpy(cookie_string+*actual_len, name);
 	*actual_len += strlen(name);
-	
+
 	strcpy(cookie_string+*actual_len, value);
 	*actual_len += strlen(value);
 }
@@ -357,7 +364,7 @@ void build_cookie_field(char* cookie_string, int* actual_len, const char* name, 
 char* build_cookie_string(const char* name, const char* value, const char* max_age, const char* path) {
 	int max_len = 3*strlen(name)+3*strlen(value)+3*strlen(path)+ 40; //sorry about magic number everywhere; will fix
 	int actual_len = 0;
-	
+
 	char* cookie_string = (char*)malloc(max_len);
 
 	if (strlen(name) != 0) {

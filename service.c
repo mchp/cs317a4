@@ -53,11 +53,11 @@ int service(int socket, char* request_string, char* response_string, int* length
 
 			while (curr_len < body_len) {
 				int bytes_received = recv(socket, body+curr_len, body_len-curr_len,0);
-	
+
 				if (bytes_received <= 0) {
 					return 1;
 				}
-	
+
 				curr_len += bytes_received;
 			}
 			request.body = body;	
@@ -90,10 +90,9 @@ void handle_client(int socket) {
 	printf("connection opened\n");
 
 	int open = 1;
-	do {
+	while (open) {
 		open = service(socket, request_string, response_string, &len);
-	} while(open);
-
+	}
 	//persistent connection close
 	printf("connection closed\n");
 
@@ -129,7 +128,7 @@ command_type parse_command(char* uri){
 char* user_logged_in(const char* username) {
 	char* title = "Username: \0";
 	int total_len = strlen(username)+strlen(title)+2;
-	
+
 	char* logged_in_str = (char*)malloc(total_len);
 	strcpy(logged_in_str, title);
 	strcpy(logged_in_str+strlen(title), username);
@@ -191,7 +190,7 @@ void handle_login(request_info* request, response_info* response) {
 		response->status_msg = "Forbidden";
 		response->body = "Login failed\n";
 	}
-	
+
 	response->cache_control = "no-cache";
 	set_content_length(response);
 
@@ -252,7 +251,8 @@ void handle_redirect (request_info* request, response_info* response){
 	if (response->location == NULL){
 		command_forbidden(response);
 	}
-	prepend_user_to_body(request, response);
+	//prepend_user_to_body(request, response);
+	response->body = request->user_agent;
 	set_content_length(response);
 }
 
@@ -269,7 +269,7 @@ void handle_getfile(request_info* request, response_info* response){
 	char* filename = decode(filename_encoded, (char*)malloc(strlen(filename_encoded)+1));
 	struct stat filestatus;
     	stat(filename, &filestatus);
-	
+
 	response->last_modified = get_local_time_string(&filestatus.st_ctime);
 
 	if (request->if_modified_since) {
@@ -312,7 +312,7 @@ void handle_getfile(request_info* request, response_info* response){
 		}
 
 		append(&(response->body), "0\r\n\r\n");
-		
+
 	} else {
 		response->status_code = "404";
 		response->status_msg = "Not Found";
@@ -348,7 +348,7 @@ void handle_putfile(request_info* request, response_info* response){
 		char* save_success = " has been saved successfully.";
 		filename = (char*)realloc(filename, filename_len+strlen(save_success));
 		strcpy(filename+filename_len, save_success);
-	
+
 		response->body = filename;
 		set_content_length(response);
 	} else {
@@ -607,8 +607,8 @@ char* print_response(response_info* response){
 	if (response->body) {
 		add_response_body(&response_string, response->body);
 	}
-	
+
 	free(time_string);
-	
+
 	return response_string;
 }
