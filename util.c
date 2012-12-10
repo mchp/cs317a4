@@ -310,7 +310,14 @@ int has_cookie(const char* cookie_string, const char* name) {
 }
 
 char* extract_cookie(const char* cookie_string, const char* name) {
+	if (!cookie_string) {
+		return NULL;
+	}
 	int total_len = strlen(cookie_string);
+
+	if (total_len == 0) {
+		return NULL;
+	}
 	int name_len = strlen(name);
 	int val_len = 0;
 

@@ -90,10 +90,9 @@ void handle_client(int socket) {
 	printf("connection opened\n");
 
 	int open = 1;
-	do {
+	while (open) {
 		open = service(socket, request_string, response_string, &len);
-	} while(open);
-
+	}
 	//persistent connection close
 	printf("connection closed\n");
 
